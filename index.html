@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RuleGuard UI MVP</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #1c1c1e;
+            color: #ffffff;
+            padding: 20px;
+            text-align: center;
+        }
+        .card {
+            background-color: #2c2c2e;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        input {
+            width: 90%;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border: 1px solid #48484a;
+            background-color: #3a3a3c;
+            color: white;
+        }
+        button {
+            background-color: #34c759;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 95%;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h2>🛡️ Анкета RuleGuard</h2>
+        <p>Опишите ваш бизнес, чтобы ИИ рассчитал юридические риски:</p>
+        <input type="text" id="business_input" placeholder="Например: Кофейня на вынос, Спб">
+        <button onclick="sendData()">Запустить анализ рисков</button>
+    </div>
+
+    <script>
+        // Инициализируем WebApp Телеграма
+        const tg = window.Telegram.WebApp;
+        tg.expand(); // Разворачиваем окно на максимум
+
+        function sendData() {
+            const text = document.getElementById('business_input').value;
+            if (!text) return alert('Введите описание бизнеса!');
+            
+            // Отправляем данные обратно в чат боту!
+            tg.sendData(text);
+            tg.close(); // Закрываем мини-приложение
+        }
+    </script>
+</body>
+</html>
