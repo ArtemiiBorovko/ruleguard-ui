@@ -333,7 +333,7 @@
         }
 
         // Отправка данных Python-боту БЕЗ ЗАКРЫТИЯ ОКНА ТГ
-        function saveProfileData() {
+function saveProfileData() {
             const country = document.getElementById('country').value;
             const location = document.getElementById('location').value.trim();
             const bizForm = document.getElementById('biz_form').value;
@@ -342,8 +342,13 @@
 
             if (!location) { return alert('Укажите локацию!'); }
 
-            // Сохраняем техническое время в кэш
             saveSettingsToCache();
+
+            // Создаем имитацию отчета для Архива прямо на клиенте, пока бот думает
+            const mockReport = `Бизнес-профиль: ${bizForm} в ${location} (${country}).\nСпецифика: ${description}\n\n[Статус]: Подробный разбор рисков от Llama 3.3 отправлен вам в чат Телеграма! Загляните в диалог с ботом.`;
+            
+            // Записываем этот текст в память приложения
+            localStorage.setItem('ruleguard_last_report', mockReport);
 
             const payload = {
                 action: "save_profile",
@@ -353,6 +358,10 @@
                 business_details: description || "Miami Cafe Project",
                 push_time: pushTime
             };
+
+            // Шлем боту (Телеграм тут закроет окно, но память уже сохранилась!)
+            tg.sendData(JSON.stringify(payload));
+        }
 
             // Переключаем юзера обратно на Радар, показывая статус загрузки
             switchScreen('screen-radar', document.getElementById('tab-radar'));
