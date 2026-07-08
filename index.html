@@ -18,25 +18,28 @@
             border-radius: 12px;
             padding: 20px;
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            margin-top: 20px;
         }
         input {
             width: 90%;
-            padding: 10px;
-            margin: 10px 0;
+            padding: 12px;
+            margin: 15px 0;
             border-radius: 8px;
             border: 1px solid #48484a;
             background-color: #3a3a3c;
             color: white;
+            font-size: 16px;
         }
         button {
             background-color: #34c759;
             color: white;
             border: none;
-            padding: 12px 20px;
+            padding: 14px 20px;
             border-radius: 8px;
             font-weight: bold;
             cursor: pointer;
             width: 95%;
+            font-size: 16px;
         }
     </style>
 </head>
@@ -46,21 +49,28 @@
         <h2>🛡️ Анкета RuleGuard</h2>
         <p>Опишите ваш бизнес, чтобы ИИ рассчитал юридические риски:</p>
         <input type="text" id="business_input" placeholder="Например: Кофейня на вынос, Спб">
-        <button onclick="sendData()">Запустить анализ рисков</button>
+        <button onclick="sendDataToBot()">Запустить анализ рисков</button>
     </div>
 
     <script>
-        // Инициализируем WebApp Телеграма
         const tg = window.Telegram.WebApp;
-        tg.expand(); // Разворачиваем окно на максимум
+        tg.expand(); 
 
-        function sendData() {
+        function sendDataToBot() {
             const text = document.getElementById('business_input').value;
-            if (!text) return alert('Введите описание бизнеса!');
+            if (!text) {
+                alert('Введите описание бизнеса!');
+                return;
+            }
             
-            // Отправляем данные обратно в чат боту!
-            tg.sendData(text);
-            tg.close(); // Закрываем мини-приложение
+            // Проверенный метод отправки данных для любых платформ
+            try {
+                tg.sendData(text);
+                // Если приложение не закрылось автоматически, закрываем его через полсекунды
+                setTimeout(() => { tg.close(); }, 100);
+            } catch (error) {
+                alert('Ошибка отправки: ' + error.message);
+            }
         }
     </script>
 </body>
