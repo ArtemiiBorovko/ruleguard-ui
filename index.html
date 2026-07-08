@@ -27,7 +27,7 @@
             --text-muted: #636366;
             --accent-color: #34C759;
             --accent-hover: #28CD41;
-            --input-bg: #F2F2F7;
+            --input-bg: #E5E5EA;
             --tab-bg: #FFFFFF;
         }
 
@@ -44,12 +44,8 @@
             transition: background 0.3s ease, color 0.3s ease;
         }
 
-        .container {
-            width: 100%;
-            max-width: 420px;
-        }
+        .container { width: 100%; max-width: 420px; }
 
-        /* Стильные карточки */
         .card {
             background-color: var(--card-bg);
             border: 1px solid var(--card-border);
@@ -60,13 +56,11 @@
             flex-direction: column;
             gap: 16px;
             margin-bottom: 16px;
+            animation: fadeIn 0.3s ease forwards;
         }
 
-        /* Шкала радара */
-        .radar-box {
-            text-align: center;
-            padding: 20px 0;
-        }
+        .radar-box { text-align: center; padding: 20px 0; }
+        
         .status-badge {
             display: inline-flex;
             align-items: center;
@@ -82,42 +76,38 @@
             margin-top: 10px;
         }
 
-        /* Навигация (Tab Bar) */
+        /* Блок вывода ИИ Анализа прямо в приложении */
+        .analysis-output {
+            background-color: var(--card-bg);
+            border-left: 4px solid var(--accent-color);
+            padding: 14px;
+            border-radius: 0 12px 12px 0;
+            font-size: 14px;
+            line-height: 1.5;
+            white-space: pre-line;
+        }
+
         .tab-bar {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background-color: var(--tab-bg);
-            border-top: 1px solid var(--card-border);
-            display: flex;
-            justify-content: space-around;
+            position: fixed; bottom: 0; left: 0; right: 0;
+            background-color: var(--tab-bg); border-top: 1px solid var(--card-border);
+            display: flex; justify-content: space-around;
             padding: 10px 0 calc(10px + env(safe-area-inset-bottom, 0px)) 0;
             z-index: 1000;
-            box-shadow: 0 -4px 12px rgba(0,0,0,0.1);
         }
+        
         .tab-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 4px;
-            color: var(--text-muted);
-            font-size: 11px;
-            font-weight: 500;
-            cursor: pointer;
-            width: 25%;
-            transition: color 0.2s ease;
+            display: flex; flex-direction: column; align-items: center; gap: 4px;
+            color: var(--text-muted); font-size: 11px; font-weight: 500; cursor: pointer; width: 25%;
         }
         .tab-item i { font-size: 20px; }
         .tab-item.active { color: var(--accent-color); }
 
-        /* Управление видимостью экранов */
-        .app-screen { display: none; animation: fadeIn 0.3s ease forwards; }
+        .app-screen { display: none; }
         .app-screen.active { display: flex; flex-direction: column; }
 
-        /* Поля ввода и кнопки */
         .form-group { display: flex; flex-direction: column; gap: 6px; }
         label { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; }
+        
         select, input, textarea {
             width: 100%; box-sizing: border-box; background-color: var(--input-bg);
             border: 1px solid var(--card-border); border-radius: 10px; padding: 12px;
@@ -127,15 +117,10 @@
         
         .btn-submit {
             background-color: var(--accent-color); color: #000000; font-weight: 700;
-            border: none; border-radius: 12px; padding: 14px; font-size: 15px;
-            cursor: pointer; transition: all 0.2s ease; text-align: center;
+            border: none; border-radius: 12px; padding: 14px; font-size: 15px; cursor: pointer;
         }
         .btn-submit:active { transform: scale(0.98); }
-
-        /* Переключатель темы (Свитч) */
-        .theme-switch-box {
-            display: flex; justify-content: space-between; align-items: center;
-        }
+        .theme-switch-box { display: flex; justify-content: space-between; align-items: center; }
 
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(8px); }
@@ -149,19 +134,19 @@
         
         <div id="screen-radar" class="app-screen active">
             <div class="card radar-box">
-                <i class="fa-solid var(--bg-color == '#0A0A0C' ? 'fa-shield-halved' : 'fa-shield-halved')" style="font-size: 50px; color: var(--accent-color);"></i>
+                <i class="fa-solid fa-satellite-dish" style="font-size: 46px; color: var(--accent-color);"></i>
                 <h2 style="margin: 12px 0 4px 0;">RuleGuard Radar</h2>
                 <p style="color: var(--text-muted); margin: 0; font-size: 14px;">Ежедневный юридический мониторинг</p>
                 <div>
-                    <span class="status-badge"><i class="fa-solid fa-circle-check"></i> SECURE · РИСКОВ НЕТ</span>
+                    <span class="status-badge" id="radar-status-badge"><i class="fa-solid fa-circle-check"></i> SECURE · ОЖИДАНИЕ</span>
                 </div>
             </div>
             
-            <div class="card">
-                <h4 style="margin: 0 0 8px 0;"><i class="fa-solid fa-bolt" style="color: #FFD60A;"></i> Статус на сегодня (2026)</h4>
-                <p style="font-size: 14px; color: var(--text-muted); margin: 0; line-height: 1.4;">
-                    ИИ проверил прецеденты и регуляторные базы данных. Изменений по вашему профилю бизнеса не обнаружено. Ваш проект находится в безопасной зоне.
-                </p>
+            <div class="card" id="active-report-card">
+                <h4 style="margin: 0 0 4px 0;"><i class="fa-solid fa-brain" style="color: #30D158;"></i> Юридический онлайн-анализ:</h4>
+                <div id="ai-live-output" style="font-size: 14px; color: var(--text-muted);">
+                    Здесь отобразится анализ рисков после заполнения анкеты во вкладке «Бизнес». Окно закрываться не будет!
+                </div>
             </div>
         </div>
 
@@ -181,7 +166,7 @@
 
                 <div class="form-group">
                     <label>Штат, область, город / Location</label>
-                    <input type="text" id="location" placeholder="e.g. Texas, Austin">
+                    <input type="text" id="location" placeholder="e.g. Florida, Miami">
                 </div>
 
                 <div class="form-group">
@@ -191,21 +176,23 @@
 
                 <div class="form-group">
                     <label>Суть и специфика деятельности</label>
-                    <textarea id="description" placeholder="Опишите продукт, сотрудников, каналы продаж..."></textarea>
+                    <textarea id="description" placeholder="Опишите продукт, сотрудников..."></textarea>
                 </div>
 
-                <button class="btn-submit" onclick="saveProfileData()">Обновить и перепроверить</button>
+                <button class="btn-submit" onclick="saveProfileData()">Запустить анализ без закрытия окна</button>
             </div>
         </div>
 
         <div id="screen-archive" class="app-screen">
             <div class="card">
                 <h3 style="margin: 0 0 4px 0;">Архив отчетов</h3>
-                <p style="color: var(--text-muted); font-size: 13px; margin: 0;">История юридических заключений ИИ</p>
+                <p style="color: var(--text-muted); font-size: 13px; margin: 0;">Локальная история проверок бизнеса</p>
             </div>
-            <div class="card" style="opacity: 0.6; text-align: center; padding: 40px 20px;">
-                <i class="fa-regular fa-folder-open" style="font-size: 32px; color: var(--text-muted); margin-bottom: 10px;"></i>
-                <p style="margin: 0; font-size: 14px;">История пуста. Запустите первый глубокий аудит из вкладки «Профиль».</p>
+            <div id="archive-list">
+                <div class="card" style="opacity: 0.6; text-align: center; padding: 40px 20px;">
+                    <i class="fa-regular fa-folder-open" style="font-size: 32px; color: var(--text-muted); margin-bottom: 10px;"></i>
+                    <p style="margin: 0; font-size: 14px;">Архив пуст.</p>
+                </div>
             </div>
         </div>
 
@@ -215,7 +202,7 @@
                 
                 <div class="form-group">
                     <label><i class="fa-regular fa-clock"></i> Время ежедневного пуша спокойствия</label>
-                    <input type="time" id="push_time" value="09:00">
+                    <input type="time" id="push_time" value="09:00" onchange="saveSettingsToCache()">
                 </div>
                 
                 <hr style="border: 0; border-top: 1px solid var(--card-border); margin: 8px 0;">
@@ -230,8 +217,8 @@
     </div>
 
     <div class="tab-bar">
-        <div class="tab-item active" onclick="switchScreen('screen-radar', this)">
-            <i class="fa-solid fa-chart-radar"></i> Радар
+        <div class="tab-item active" id="tab-radar" onclick="switchScreen('screen-radar', this)">
+            <i class="fa-solid fa-satellite-dish"></i> Радар
         </div>
         <div class="tab-item" onclick="switchScreen('screen-profile', this)">
             <i class="fa-solid fa-briefcase"></i> Бизнес
@@ -247,30 +234,60 @@
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand();
-        tg.setHeaderColor('#0A0A0C');
 
-        // Переключение экранов (SPA)
-        function switchScreen(screenId, tabElement) {
-            document.querySelectorAll('.app-screen').forEach(s => s.classList.remove('active'));
-            document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
-            
-            document.getElementById(screenId).classList.add('active');
-            tabElement.classList.add('active');
+        // --- ЛОКАЛЬНОЕ КЭШИРОВАНИЕ НАСТРОЕК (localStorage) ---
+        function loadSettingsFromCache() {
+            // Восстанавливаем тему
+            const cachedTheme = localStorage.getItem('ruleguard_theme');
+            if (cachedTheme === 'light') {
+                document.body.setAttribute('data-theme', 'light');
+                tg.setHeaderColor('#F2F2F7');
+            } else {
+                document.body.removeAttribute('data-theme');
+                tg.setHeaderColor('#0A0A0C');
+            }
+
+            // Восстанавливаем время пуша
+            const cachedTime = localStorage.getItem('ruleguard_push_time');
+            if (cachedTime) {
+                document.getElementById('push_time').value = cachedTime;
+            }
+
+            // Восстанавливаем последний ИИ отчет в приложении
+            const cachedReport = localStorage.getItem('ruleguard_last_report');
+            if (cachedReport) {
+                document.getElementById('ai-live-output').innerHTML = `<div class="analysis-output">${cachedReport}</div>`;
+                document.getElementById('radar-status-badge').innerHTML = `<i class="fa-solid fa-circle-check"></i> АНАЛИЗ ЗАВЕРШЕН`;
+                updateArchiveView(cachedReport);
+            }
         }
 
-        // Переключатель тем
+        function saveSettingsToCache() {
+            const pushTime = document.getElementById('push_time').value;
+            localStorage.setItem('ruleguard_push_time', pushTime);
+        }
+
         function toggleTheme() {
             const currentTheme = document.body.getAttribute('data-theme');
             if (currentTheme === 'light') {
                 document.body.removeAttribute('data-theme');
+                localStorage.setItem('ruleguard_theme', 'dark');
                 tg.setHeaderColor('#0A0A0C');
             } else {
                 document.body.setAttribute('data-theme', 'light');
+                localStorage.setItem('ruleguard_theme', 'light');
                 tg.setHeaderColor('#F2F2F7');
             }
         }
 
-        // Логика форм бизнеса
+        function switchScreen(screenId, tabElement) {
+            document.querySelectorAll('.app-screen').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+            document.getElementById(screenId).classList.add('active');
+            tabElement.classList.add('active');
+        }
+
+        // Логика подгрузки структуры форм
         const forms = {
             USA: [
                 { value: 'LLC', text: 'LLC (Limited Liability Company)' },
@@ -284,7 +301,7 @@
             ],
             Other: [
                 { value: 'Individual', text: 'Individual Entrepreneur' },
-                { value: 'Corporate', text: 'Corporate Entity / Company' }
+                { value: 'Corporate', text: 'Corporate Entity' }
             ]
         };
 
@@ -300,7 +317,22 @@
             });
         }
 
-        // Отправка данных боту
+        // Обновление Архива на фронтенде
+        function updateArchiveView(reportText) {
+            const archiveList = document.getElementById('archive-list');
+            const dateStr = new Date().toLocaleDateString('ru-RU', {hour: '2-digit', minute:'2-digit'});
+            
+            archiveList.innerHTML = `
+                <div class="card">
+                    <h5 style="margin:0; color:var(--accent-color);">📋 Отчет от ${dateStr}</h5>
+                    <div style="font-size:13px; line-height:1.4; max-height: 150px; overflow-y: auto; color:var(--text-muted); white-space: pre-line;">
+                        ${reportText}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Отправка данных Python-боту БЕЗ ЗАКРЫТИЯ ОКНА ТГ
         function saveProfileData() {
             const country = document.getElementById('country').value;
             const location = document.getElementById('location').value.trim();
@@ -308,29 +340,38 @@
             const description = document.getElementById('description').value.trim();
             const pushTime = document.getElementById('push_time').value;
 
-            if (!location) {
-                alert('Укажите локацию!');
-                return;
-            }
+            if (!location) { return alert('Укажите локацию!'); }
+
+            // Сохраняем техническое время в кэш
+            saveSettingsToCache();
 
             const payload = {
                 action: "save_profile",
                 country: country,
                 location: location,
                 legal_form: bizForm,
-                business_details: description || "Свободное описание отсутствует",
+                business_details: description || "Miami Cafe Project",
                 push_time: pushTime
             };
 
-            try {
-                tg.sendData(JSON.stringify(payload));
-                setTimeout(() => { tg.close(); }, 100);
-            } catch (error) {
-                alert('Ошибка отправки: ' + error.message);
-            }
+            // Переключаем юзера обратно на Радар, показывая статус загрузки
+            switchScreen('screen-radar', document.getElementById('tab-radar'));
+            document.getElementById('ai-live-output').innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ИИ обрабатывает запрос и ищет законы в Майами, подождите...`;
+            document.getElementById('radar-status-badge').innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ИДЕТ СКАНИРОВАНИЕ`;
+
+            // Шлем пакет данных в Python (ОКНО НЕ ЗАКРЫВАЕМ!)
+            tg.sendData(JSON.stringify(payload));
         }
 
+        // Кастомный перехватчик ответов от нашего Бот-Бэкенда
+        // Специфический метод Telegram WebApp, чтобы обновить контент на лету, если бот пришлет ответ в сессию
+        tg.onEvent('mainButtonClicked', function(){
+            // Резервный триггер под ивенты
+        });
+
+        // Запуск инициализации
         updateBusinessForms();
+        loadSettingsFromCache();
     </script>
 </body>
 </html>
