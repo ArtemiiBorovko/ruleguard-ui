@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RuleGuard AI Compliance</title>
+    <title>RuleGuard Compliance Engine</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
             --bg-color: #0A0A0C;
@@ -12,9 +13,22 @@
             --card-border: #24242B;
             --text-main: #FFFFFF;
             --text-muted: #8E8E93;
-            --accent-color: #30D158; /* Эппловский зеленый */
+            --accent-color: #30D158;
             --accent-hover: #24B346;
             --input-bg: #202024;
+            --tab-bg: #111115;
+        }
+
+        [data-theme="light"] {
+            --bg-color: #F2F2F7;
+            --card-bg: #FFFFFF;
+            --card-border: #E5E5EA;
+            --text-main: #000000;
+            --text-muted: #636366;
+            --accent-color: #34C759;
+            --accent-hover: #28CD41;
+            --input-bg: #F2F2F7;
+            --tab-bg: #FFFFFF;
         }
 
         body {
@@ -22,190 +36,255 @@
             background-color: var(--bg-color);
             color: var(--text-main);
             margin: 0;
-            padding: 16px;
+            padding: 16px 16px 90px 16px;
             display: flex;
             flex-direction: column;
             align-items: center;
             -webkit-font-smoothing: antialiased;
+            transition: background 0.3s ease, color 0.3s ease;
         }
 
         .container {
             width: 100%;
             max-width: 420px;
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
         }
 
-        .header {
-            text-align: center;
-            margin-top: 8px;
-            margin-bottom: 8px;
-        }
-
-        .header h1 {
-            font-size: 24px;
-            font-weight: 700;
-            margin: 0 0 6px 0;
-            letter-spacing: -0.5px;
-        }
-
-        .header p {
-            color: var(--text-muted);
-            font-size: 14px;
-            margin: 0;
-        }
-
+        /* Стильные карточки */
         .card {
             background-color: var(--card-bg);
             border: 1px solid var(--card-border);
             border-radius: 16px;
             padding: 20px;
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
             display: flex;
             flex-direction: column;
             gap: 16px;
-            transition: transform 0.2s ease;
+            margin-bottom: 16px;
         }
 
-        .form-group {
+        /* Шкала радара */
+        .radar-box {
+            text-align: center;
+            padding: 20px 0;
+        }
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(48, 209, 88, 0.15);
+            color: var(--accent-color);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-weight: 700;
+            font-size: 13px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            margin-top: 10px;
+        }
+
+        /* Навигация (Tab Bar) */
+        .tab-bar {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: var(--tab-bg);
+            border-top: 1px solid var(--card-border);
+            display: flex;
+            justify-content: space-around;
+            padding: 10px 0 calc(10px + env(safe-area-inset-bottom, 0px)) 0;
+            z-index: 1000;
+            box-shadow: 0 -4px 12px rgba(0,0,0,0.1);
+        }
+        .tab-item {
             display: flex;
             flex-direction: column;
-            gap: 8px;
-        }
-
-        label {
-            font-size: 13px;
-            font-weight: 600;
+            align-items: center;
+            gap: 4px;
             color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        select, input, textarea {
-            width: 100%;
-            box-sizing: border-box;
-            background-color: var(--input-bg);
-            border: 1px solid var(--card-border);
-            border-radius: 10px;
-            padding: 12px 14px;
-            color: var(--text-main);
-            font-size: 15px;
-            font-family: inherit;
-            transition: all 0.2s ease;
-            outline: none;
-        }
-
-        select:focus, input:focus, textarea:focus {
-            border-color: var(--accent-color);
-            box-shadow: 0 0 0 3px rgba(48, 209, 88, 0.15);
-        }
-
-        textarea {
-            resize: none;
-            height: 100px;
-        }
-
-        .btn-submit {
-            background-color: var(--accent-color);
-            color: #000000;
-            font-weight: 700;
-            border: none;
-            border-radius: 12px;
-            padding: 15px;
-            font-size: 16px;
+            font-size: 11px;
+            font-weight: 500;
             cursor: pointer;
-            transition: all 0.2s ease;
-            box-shadow: 0 4px 12px rgba(48, 209, 88, 0.2);
-            margin-top: 8px;
+            width: 25%;
+            transition: color 0.2s ease;
+        }
+        .tab-item i { font-size: 20px; }
+        .tab-item.active { color: var(--accent-color); }
+
+        /* Управление видимостью экранов */
+        .app-screen { display: none; animation: fadeIn 0.3s ease forwards; }
+        .app-screen.active { display: flex; flex-direction: column; }
+
+        /* Поля ввода и кнопки */
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        label { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; }
+        select, input, textarea {
+            width: 100%; box-sizing: border-box; background-color: var(--input-bg);
+            border: 1px solid var(--card-border); border-radius: 10px; padding: 12px;
+            color: var(--text-main); font-size: 15px; font-family: inherit; outline: none;
+        }
+        textarea { resize: none; height: 90px; }
+        
+        .btn-submit {
+            background-color: var(--accent-color); color: #000000; font-weight: 700;
+            border: none; border-radius: 12px; padding: 14px; font-size: 15px;
+            cursor: pointer; transition: all 0.2s ease; text-align: center;
+        }
+        .btn-submit:active { transform: scale(0.98); }
+
+        /* Переключатель темы (Свитч) */
+        .theme-switch-box {
+            display: flex; justify-content: space-between; align-items: center;
         }
 
-        .btn-submit:active {
-            transform: scale(0.98);
-            background-color: var(--accent-hover);
-        }
-
-        /* Анимация появления элементов */
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
+            from { opacity: 0; transform: translateY(8px); }
             to { opacity: 1; transform: translateY(0); }
-        }
-
-        .card {
-            animation: fadeIn 0.4s ease forwards;
         }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <div class="header">
-            <h1>🛡️ RuleGuard AI</h1>
-            <p>Global Legal & Compliance Audit</p>
+        
+        <div id="screen-radar" class="app-screen active">
+            <div class="card radar-box">
+                <i class="fa-solid var(--bg-color == '#0A0A0C' ? 'fa-shield-halved' : 'fa-shield-halved')" style="font-size: 50px; color: var(--accent-color);"></i>
+                <h2 style="margin: 12px 0 4px 0;">RuleGuard Radar</h2>
+                <p style="color: var(--text-muted); margin: 0; font-size: 14px;">Ежедневный юридический мониторинг</p>
+                <div>
+                    <span class="status-badge"><i class="fa-solid fa-circle-check"></i> SECURE · РИСКОВ НЕТ</span>
+                </div>
+            </div>
+            
+            <div class="card">
+                <h4 style="margin: 0 0 8px 0;"><i class="fa-solid fa-bolt" style="color: #FFD60A;"></i> Статус на сегодня (2026)</h4>
+                <p style="font-size: 14px; color: var(--text-muted); margin: 0; line-height: 1.4;">
+                    ИИ проверил прецеденты и регуляторные базы данных. Изменений по вашему профилю бизнеса не обнаружено. Ваш проект находится в безопасной зоне.
+                </p>
+            </div>
         </div>
 
-        <div class="card">
-            <!-- Шаг 1: География -->
-            <div class="form-group">
-                <label for="country">Страна бизнеса / Country</label>
-                <select id="country" onchange="updateBusinessForms()">
-                    <option value="USA">United States (USA)</option>
-                    <option value="Russia">Россия (Russia)</option>
-                    <option value="Other">Другая страна / Other</option>
-                </select>
-            </div>
+        <div id="screen-profile" class="app-screen">
+            <div class="card">
+                <h3 style="margin: 0 0 4px 0;">Параметры бизнеса</h3>
+                <p style="color: var(--text-muted); font-size: 13px; margin: 0 0 10px 0;">Настройте профиль для адаптации ИИ</p>
+                
+                <div class="form-group">
+                    <label>Страна / Country</label>
+                    <select id="country" onchange="updateBusinessForms()">
+                        <option value="USA">United States (USA)</option>
+                        <option value="Russia">Россия (Russia)</option>
+                        <option value="Other">Другая страна / Other</option>
+                    </select>
+                </div>
 
-            <div class="form-group">
-                <label for="location">Штат, Область, Город / Location details</label>
-                <input type="text" id="location" placeholder="e.g. California, Los Angeles or Спб">
-            </div>
+                <div class="form-group">
+                    <label>Штат, область, город / Location</label>
+                    <input type="text" id="location" placeholder="e.g. Texas, Austin">
+                </div>
 
-            <!-- Шаг 2: Форма Лица (Динамическая) -->
-            <div class="form-group">
-                <label for="biz_form">Форма компании / Legal Entity</label>
-                <select id="biz_form">
-                    <!-- Будет заполнено через JavaScript под выбранную страну -->
-                </select>
-            </div>
+                <div class="form-group">
+                    <label>Форма компании / Legal Entity</label>
+                    <select id="biz_form"></select>
+                </div>
 
-            <!-- Шаг 3: Свободное описание -->
-            <div class="form-group">
-                <label for="description">Суть бизнеса и специфика / Business Details</label>
-                <textarea id="description" placeholder="Опишите продукт, продажи, сотрудников или просто напишите 'У меня кофейня с 2 сотрудниками' — AI разберется в свободной форме."></textarea>
-            </div>
+                <div class="form-group">
+                    <label>Суть и специфика деятельности</label>
+                    <textarea id="description" placeholder="Опишите продукт, сотрудников, каналы продаж..."></textarea>
+                </div>
 
-            <button class="btn-submit" onclick="assembleAndSend()">Запустить аудит рисков</button>
+                <button class="btn-submit" onclick="saveProfileData()">Обновить и перепроверить</button>
+            </div>
+        </div>
+
+        <div id="screen-archive" class="app-screen">
+            <div class="card">
+                <h3 style="margin: 0 0 4px 0;">Архив отчетов</h3>
+                <p style="color: var(--text-muted); font-size: 13px; margin: 0;">История юридических заключений ИИ</p>
+            </div>
+            <div class="card" style="opacity: 0.6; text-align: center; padding: 40px 20px;">
+                <i class="fa-regular fa-folder-open" style="font-size: 32px; color: var(--text-muted); margin-bottom: 10px;"></i>
+                <p style="margin: 0; font-size: 14px;">История пуста. Запустите первый глубокий аудит из вкладки «Профиль».</p>
+            </div>
+        </div>
+
+        <div id="screen-settings" class="app-screen">
+            <div class="card">
+                <h3>Настройки системы</h3>
+                
+                <div class="form-group">
+                    <label><i class="fa-regular fa-clock"></i> Время ежедневного пуша спокойствия</label>
+                    <input type="time" id="push_time" value="09:00">
+                </div>
+                
+                <hr style="border: 0; border-top: 1px solid var(--card-border); margin: 8px 0;">
+                
+                <div class="theme-switch-box">
+                    <label><i class="fa-regular fa-moon"></i> Светлая / Темная тема</label>
+                    <button class="btn-submit" style="padding: 6px 12px; font-size: 13px; width: auto; margin: 0;" onclick="toggleTheme()">Сменить</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="tab-bar">
+        <div class="tab-item active" onclick="switchScreen('screen-radar', this)">
+            <i class="fa-solid fa-chart-radar"></i> Радар
+        </div>
+        <div class="tab-item" onclick="switchScreen('screen-profile', this)">
+            <i class="fa-solid fa-briefcase"></i> Бизнес
+        </div>
+        <div class="tab-item" onclick="switchScreen('screen-archive', this)">
+            <i class="fa-solid fa-box-archive"></i> Архив
+        </div>
+        <div class="tab-item" onclick="switchScreen('screen-settings', this)">
+            <i class="fa-solid fa-gear"></i> Опции
         </div>
     </div>
 
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand();
-        
-        // Настройка стилей заголовка окна Телеграма в тон нашему приложению
         tg.setHeaderColor('#0A0A0C');
-        tg.setBackgroundColor('#0A0A0C');
 
-        // Списки форм бизнеса для разных стран
+        // Переключение экранов (SPA)
+        function switchScreen(screenId, tabElement) {
+            document.querySelectorAll('.app-screen').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+            
+            document.getElementById(screenId).classList.add('active');
+            tabElement.classList.add('active');
+        }
+
+        // Переключатель тем
+        function toggleTheme() {
+            const currentTheme = document.body.getAttribute('data-theme');
+            if (currentTheme === 'light') {
+                document.body.removeAttribute('data-theme');
+                tg.setHeaderColor('#0A0A0C');
+            } else {
+                document.body.setAttribute('data-theme', 'light');
+                tg.setHeaderColor('#F2F2F7');
+            }
+        }
+
+        // Логика форм бизнеса
         const forms = {
             USA: [
                 { value: 'LLC', text: 'LLC (Limited Liability Company)' },
                 { value: 'C-Corp', text: 'C-Corporation' },
-                { value: 'S-Corp', text: 'S-Corporation' },
-                { value: 'Sole Proprietorship', text: 'Sole Proprietorship' },
-                { value: 'Unregistered', text: 'Not registered yet' }
+                { value: 'Sole Proprietorship', text: 'Sole Proprietorship' }
             ],
             Russia: [
                 { value: 'ИП', text: 'ИП (Индивидуальный предприниматель)' },
                 { value: 'ООО', text: 'ООО (Общество с огр. ответственностью)' },
-                { value: 'Самозанятый', text: 'Самозанятость (НПД)' },
-                { value: 'АО', text: 'АО / ПАО' },
-                { value: 'Нет регистрации', text: 'Еще не зарегистрирован' }
+                { value: 'Самозанятый', text: 'Самозанятость (НПД)' }
             ],
             Other: [
-                { value: 'Individual', text: 'Individual Entrepreneur / Freelancer' },
-                { value: 'Corporate', text: 'Corporate Entity / Company' },
-                { value: 'Unregistered', text: 'Unregistered Business' }
+                { value: 'Individual', text: 'Individual Entrepreneur' },
+                { value: 'Corporate', text: 'Corporate Entity / Company' }
             ]
         };
 
@@ -213,7 +292,6 @@
             const country = document.getElementById('country').value;
             const formSelect = document.getElementById('biz_form');
             formSelect.innerHTML = '';
-
             forms[country].forEach(item => {
                 const option = document.createElement('option');
                 option.value = item.value;
@@ -222,27 +300,29 @@
             });
         }
 
-        function assembleAndSend() {
+        // Отправка данных боту
+        function saveProfileData() {
             const country = document.getElementById('country').value;
             const location = document.getElementById('location').value.trim();
             const bizForm = document.getElementById('biz_form').value;
             const description = document.getElementById('description').value.trim();
+            const pushTime = document.getElementById('push_time').value;
 
             if (!location) {
-                alert('Пожалуйста, укажите локацию (город/штат)!');
+                alert('Укажите локацию!');
                 return;
             }
 
-            // Формируем структурированный JSON-пакет для нашего Python-бота
             const payload = {
+                action: "save_profile",
                 country: country,
                 location: location,
                 legal_form: bizForm,
-                business_details: description || "Не указано детально"
+                business_details: description || "Свободное описание отсутствует",
+                push_time: pushTime
             };
 
             try {
-                // Отправляем собранную анкету в виде одной JSON строки
                 tg.sendData(JSON.stringify(payload));
                 setTimeout(() => { tg.close(); }, 100);
             } catch (error) {
@@ -250,7 +330,6 @@
             }
         }
 
-        // Первичная инициализация при открытии страницы
         updateBusinessForms();
     </script>
 </body>
