@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RuleGuard Compliance Engine</title>
+    <title>RuleGuard AI</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
@@ -76,7 +76,6 @@
             margin-top: 10px;
         }
 
-        /* Блок вывода ИИ Анализа прямо в приложении */
         .analysis-output {
             background-color: var(--card-bg);
             border-left: 4px solid var(--accent-color);
@@ -85,6 +84,7 @@
             font-size: 14px;
             line-height: 1.5;
             white-space: pre-line;
+            text-align: left;
         }
 
         .tab-bar {
@@ -132,24 +132,26 @@
 
     <div class="container">
         
+        <!-- ЭКРАН 1: ГЛАВНАЯ -->
         <div id="screen-radar" class="app-screen active">
             <div class="card radar-box">
-                <i class="fa-solid fa-satellite-dish" style="font-size: 46px; color: var(--accent-color);"></i>
-                <h2 style="margin: 12px 0 4px 0;">RuleGuard Radar</h2>
+                <i class="fa-solid fa-shield-halved" style="font-size: 46px; color: var(--accent-color);"></i>
+                <h2 style="margin: 12px 0 4px 0;">RuleGuard AI</h2>
                 <p style="color: var(--text-muted); margin: 0; font-size: 14px;">Ежедневный юридический мониторинг</p>
                 <div>
-                    <span class="status-badge" id="radar-status-badge"><i class="fa-solid fa-circle-check"></i> SECURE · ОЖИДАНИЕ</span>
+                    <span class="status-badge" id="radar-status-badge"><i class="fa-solid fa-circle-check"></i> Мониторинг активен</span>
                 </div>
             </div>
             
             <div class="card" id="active-report-card">
-                <h4 style="margin: 0 0 4px 0;"><i class="fa-solid fa-brain" style="color: #30D158;"></i> Юридический онлайн-анализ:</h4>
+                <h4 style="margin: 0 0 4px 0;"><i class="fa-solid fa-brain" style="color: #30D158;"></i> Последний анализ:</h4>
                 <div id="ai-live-output" style="font-size: 14px; color: var(--text-muted);">
-                    Здесь отобразится анализ рисков после заполнения анкеты во вкладке «Бизнес». Окно закрываться не будет!
+                    Здесь отобразится информация после заполнения параметров бизнеса.
                 </div>
             </div>
         </div>
 
+        <!-- ЭКРАН 2: БИЗНЕС -->
         <div id="screen-profile" class="app-screen">
             <div class="card">
                 <h3 style="margin: 0 0 4px 0;">Параметры бизнеса</h3>
@@ -179,10 +181,11 @@
                     <textarea id="description" placeholder="Опишите продукт, сотрудников..."></textarea>
                 </div>
 
-                <button class="btn-submit" onclick="saveProfileData()">Запустить анализ без закрытия окна</button>
+                <button class="btn-submit" onclick="saveProfileData()">Запустить анализ рисков</button>
             </div>
         </div>
 
+        <!-- ЭКРАН 3: АРХИВ -->
         <div id="screen-archive" class="app-screen">
             <div class="card">
                 <h3 style="margin: 0 0 4px 0;">Архив отчетов</h3>
@@ -196,6 +199,7 @@
             </div>
         </div>
 
+        <!-- ЭКРАН 4: ОПЦИИ -->
         <div id="screen-settings" class="app-screen">
             <div class="card">
                 <h3>Настройки системы</h3>
@@ -216,17 +220,18 @@
 
     </div>
 
+    <!-- НИЖНЕЕ МЕНЮ (TAB BAR) -->
     <div class="tab-bar">
         <div class="tab-item active" id="tab-radar" onclick="switchScreen('screen-radar', this)">
-            <i class="fa-solid fa-satellite-dish"></i> Радар
+            <i class="fa-solid fa-shield-halved"></i> Главная
         </div>
-        <div class="tab-item" onclick="switchScreen('screen-profile', this)">
+        <div class="tab-item" id="tab-profile" onclick="switchScreen('screen-profile', this)">
             <i class="fa-solid fa-briefcase"></i> Бизнес
         </div>
-        <div class="tab-item" onclick="switchScreen('screen-archive', this)">
+        <div class="tab-item" id="tab-archive" onclick="switchScreen('screen-archive', this)">
             <i class="fa-solid fa-box-archive"></i> Архив
         </div>
-        <div class="tab-item" onclick="switchScreen('screen-settings', this)">
+        <div class="tab-item" id="tab-settings" onclick="switchScreen('screen-settings', this)">
             <i class="fa-solid fa-gear"></i> Опции
         </div>
     </div>
@@ -235,9 +240,16 @@
         const tg = window.Telegram.WebApp;
         tg.expand();
 
-        // --- ЛОКАЛЬНОЕ КЭШИРОВАНИЕ НАСТРОЕК (localStorage) ---
+        function switchScreen(screenId, tabElement) {
+            document.querySelectorAll('.app-screen').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
+            
+            const targetScreen = document.getElementById(screenId);
+            if (targetScreen) targetScreen.classList.add('active');
+            if (tabElement) tabElement.classList.add('active');
+        }
+
         function loadSettingsFromCache() {
-            // Восстанавливаем тему
             const cachedTheme = localStorage.getItem('ruleguard_theme');
             if (cachedTheme === 'light') {
                 document.body.setAttribute('data-theme', 'light');
@@ -247,17 +259,14 @@
                 tg.setHeaderColor('#0A0A0C');
             }
 
-            // Восстанавливаем время пуша
             const cachedTime = localStorage.getItem('ruleguard_push_time');
             if (cachedTime) {
                 document.getElementById('push_time').value = cachedTime;
             }
 
-            // Восстанавливаем последний ИИ отчет в приложении
             const cachedReport = localStorage.getItem('ruleguard_last_report');
             if (cachedReport) {
                 document.getElementById('ai-live-output').innerHTML = `<div class="analysis-output">${cachedReport}</div>`;
-                document.getElementById('radar-status-badge').innerHTML = `<i class="fa-solid fa-circle-check"></i> АНАЛИЗ ЗАВЕРШЕН`;
                 updateArchiveView(cachedReport);
             }
         }
@@ -280,14 +289,6 @@
             }
         }
 
-        function switchScreen(screenId, tabElement) {
-            document.querySelectorAll('.app-screen').forEach(s => s.classList.remove('active'));
-            document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
-            document.getElementById(screenId).classList.add('active');
-            tabElement.classList.add('active');
-        }
-
-        // Логика подгрузки структуры форм
         const forms = {
             USA: [
                 { value: 'LLC', text: 'LLC (Limited Liability Company)' },
@@ -317,9 +318,9 @@
             });
         }
 
-        // Обновление Архива на фронтенде
         function updateArchiveView(reportText) {
             const archiveList = document.getElementById('archive-list');
+            if(!archiveList) return;
             const dateStr = new Date().toLocaleDateString('ru-RU', {hour: '2-digit', minute:'2-digit'});
             
             archiveList.innerHTML = `
@@ -332,8 +333,7 @@
             `;
         }
 
-        // Отправка данных Python-боту БЕЗ ЗАКРЫТИЯ ОКНА ТГ
-function saveProfileData() {
+        function saveProfileData() {
             const country = document.getElementById('country').value;
             const location = document.getElementById('location').value.trim();
             const bizForm = document.getElementById('biz_form').value;
@@ -344,10 +344,7 @@ function saveProfileData() {
 
             saveSettingsToCache();
 
-            // Создаем имитацию отчета для Архива прямо на клиенте, пока бот думает
-            const mockReport = `Бизнес-профиль: ${bizForm} в ${location} (${country}).\nСпецифика: ${description}\n\n[Статус]: Подробный разбор рисков от Llama 3.3 отправлен вам в чат Телеграма! Загляните в диалог с ботом.`;
-            
-            // Записываем этот текст в память приложения
+            const mockReport = `Бизнес-профиль: ${bizForm} в ${location} (${country}).\nСпецифика: ${description}\n\n[Статус]: Подробный разбор рисков от Llama 3.3 отправлен вам в чат Телеграма!`;
             localStorage.setItem('ruleguard_last_report', mockReport);
 
             const payload = {
@@ -359,26 +356,9 @@ function saveProfileData() {
                 push_time: pushTime
             };
 
-            // Шлем боту (Телеграм тут закроет окно, но память уже сохранилась!)
             tg.sendData(JSON.stringify(payload));
         }
 
-            // Переключаем юзера обратно на Радар, показывая статус загрузки
-            switchScreen('screen-radar', document.getElementById('tab-radar'));
-            document.getElementById('ai-live-output').innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ИИ обрабатывает запрос и ищет законы в Майами, подождите...`;
-            document.getElementById('radar-status-badge').innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ИДЕТ СКАНИРОВАНИЕ`;
-
-            // Шлем пакет данных в Python (ОКНО НЕ ЗАКРЫВАЕМ!)
-            tg.sendData(JSON.stringify(payload));
-        }
-
-        // Кастомный перехватчик ответов от нашего Бот-Бэкенда
-        // Специфический метод Telegram WebApp, чтобы обновить контент на лету, если бот пришлет ответ в сессию
-        tg.onEvent('mainButtonClicked', function(){
-            // Резервный триггер под ивенты
-        });
-
-        // Запуск инициализации
         updateBusinessForms();
         loadSettingsFromCache();
     </script>
