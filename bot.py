@@ -65,12 +65,18 @@ def init_db():
     conn.commit()
     conn.close()
 
-def save_user_data_extended(user_id, username=None, business=None, country=None, location=None, legal_form=None, push_time=None):
+def save_user_data_extended(user_id, username=None, business=None, country=None, location=None, legal_form=None, push_time=None, timezone=None):
     conn = sqlite3.connect('ruleguard.db')
     cursor = conn.cursor()
-    cursor.execute("SELECT user_name, business_description, country, location, legal_form, push_time FROM users WHERE user_id = ?", (user_id,))
+    cursor.execute("SELECT user_name, business_description, country, location, legal_form, push_time, timezone FROM users WHERE user_id = ?", (user_id,))
     row = cursor.fetchone()
     
+    # Пытаемся автоматически добавить колонку, если её ещё нет в БД
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN timezone TEXT DEFAULT 'Europe/Moscow'")
+    except sqlite3.OperationalError:
+        pass
+
     if row:
         c_name = username if username else row[0]
         c_bus = business if business else row[1]
@@ -78,17 +84,18 @@ def save_user_data_extended(user_id, username=None, business=None, country=None,
         c_loc = location if location else row[3]
         c_form = legal_form if legal_form else row[4]
         c_push = push_time if push_time else row[5]
+        c_tz = timezone if timezone else (row[6] if len(row) > 6 else 'Europe/Moscow')
         
         cursor.execute('''
             UPDATE users 
-            SET user_name = ?, business_description = ?, country = ?, location = ?, legal_form = ?, push_time = ?, updated_at = CURRENT_TIMESTAMP
+            SET user_name = ?, business_description = ?, country = ?, location = ?, legal_form = ?, push_time = ?, timezone = ?, updated_at = CURRENT_TIMESTAMP
             WHERE user_id = ?
-        ''', (c_name, c_bus, c_country, c_loc, c_form, c_push, user_id))
+        ''', (c_name, c_bus, c_country, c_loc, c_form, c_push, c_tz, user_id))
     else:
         cursor.execute('''
-            INSERT INTO users (user_id, user_name, business_description, country, location, legal_form, push_time) 
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        ''', (user_id, username, business, country, location, legal_form, push_time or '09:00'))
+            INSERT INTO users (user_id, user_name, business_description, country, location, legal_form, push_time, timezone) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', (user_id, username, business, country, location, legal_form, push_time or '09:00', timezone or 'Europe/Moscow'))
         
     conn.commit()
     conn.close()
@@ -187,7 +194,6 @@ def read_root():
 
 @app.post("/api/analyze")
 async def handle_web_analysis(request: Request):
-    """Сайт будет вызывать этот адрес. Окно приложения останется открытым!"""
     try:
         data = await request.json()
         user_id = int(data.get('user_id'))
@@ -197,21 +203,21 @@ async def handle_web_analysis(request: Request):
         legal_form = data.get('legal_form', 'Не указано')
         details = data.get('business_details', 'Не указано')
         push_time = data.get('push_time', '09:00')
+        user_tz = data.get('timezone', 'Europe/Moscow') # Ловим таймзону смартфона
         
         compiled_input = f"Страна: {country}, Локация: {location}. Форма: {legal_form}. Детали: {details}"
         
-        # 1. Сохраняем расширенные данные в БД
-        save_user_data_extended(user_id, username, details, country, location, legal_form, push_time)
+        # Сохраняем расширенные данные вместе с таймзоной в БД
+        save_user_data_extended(user_id, username, details, country, location, legal_form, push_time, user_tz)
         
-        # 2. Запускаем тяжелый анализ ИИ
         report = generate_report_logic(user_id, compiled_input)
         
-        # 3. Отправляем копию в чат Телеграма для удобства
         flag = "🇺🇸" if country == "USA" else "🇷🇺" if country == "Russia" else "🌐"
+        
+        # ИСПРАВЛЕНО: Безопасный HTML-формат, чтобы не было ошибки 400 Bad Request
         safe_report = report.replace("<", "&lt;").replace(">", "&gt;")
         bot.send_message(user_id, f"{flag} <b>Новый анализ из приложения</b>\n\n{safe_report}", parse_mode='HTML')
         
-        # 4. Возвращаем отчет прямо на экран Mini App!
         return {"status": "success", "report": report}
         
     except Exception as e:
@@ -221,41 +227,44 @@ async def handle_web_analysis(request: Request):
 # ПЛАНИРОВЩИК: ПУШИ И УМНЫЙ ХАК ПРОТИВ УХОДА RENDER В СОН
 # =====================================================================
 def send_daily_push_notifications():
-    current_time_str = datetime.now().strftime("%H:%M")
     try:
         conn = sqlite3.connect('ruleguard.db')
         cursor = conn.cursor()
-        cursor.execute("SELECT user_id, user_name, business_description, country, location, legal_form FROM users WHERE push_time = ?", (current_time_str,))
-        users_to_alert = cursor.fetchall()
+        # Достаем push_time и timezone пользователей
+        cursor.execute("SELECT user_id, user_name, business_description, location, push_time, timezone FROM users")
+        all_users = cursor.fetchall()
         conn.close()
         
-        if not users_to_alert:
-            return
-            
-        print(f"⏰ Найдено пользователей для пуша: {len(users_to_alert)}")
-        for user in users_to_alert:
-            user_id, username, business, country, location, legal_form = user
+        for user in all_users:
+            user_id, username, business, location, push_time, user_tz = user
             if not location or not business: continue
+            if not user_tz: user_tz = 'Europe/Moscow'
                 
-            search_query = f"юридические изменения законы риски 2026 {location} {business}"
-            web_data = search_internet(search_query)
+            # Проверяем, сколько сейчас времени ИМЕННО у этого пользователя в его городе
+            tz = pytz.timezone(user_tz)
+            user_current_time = datetime.now(tz).strftime("%H:%M")
             
-            system_instruction = (
-                "Ты — ИИ-юрист RuleGuard. Твоя задача — прислать ежедневную сводку спокойствия.\n"
-                "Пиши очень кратко (максимум 2-3 предложения). Скажи, есть ли критические изменения по законам на сегодня.\n"
-                "Если всё спокойно, поддержи предпринимателя. В конце обязательно напиши фразу: 'Ваш бизнес под защитой. RuleGuard AI на связи!'"
-            )
-            
-            completion = groq_client.chat.completions.create(
-                model="llama-3.3-70b-versatile", 
-                messages=[
-                    {"role": "system", "content": system_instruction},
-                    {"role": "user", "content": completion}
-                ],
-                temperature=0.4
-            )
-            push_text = completion.choices[0].message.content
-            bot.send_message(user_id, f"🛡️ *Ежедневный RuleGuard Радар*\n\n{push_text}", parse_mode="Markdown")
+            # Если у него на часах наступило выбранное время (например, 09:00) — шлем пуш
+            if user_current_time == push_time:
+                search_query = f"юридические изменения законы риски 2026 {location} {business}"
+                web_data = search_internet(search_query)
+                
+                system_instruction = (
+                    "Ты — ИИ-юрист RuleGuard. Твоя задача — прислать ежедневную сводку спокойствия.\n"
+                    "Пиши очень кратко (максимум 2-3 предложения). Скажи, есть ли критические изменения по законам на сегодня.\n"
+                    "Если всё спокойно, поддержи предпринимателя. В конце обязательно напиши фразу: 'Ваш бизнес под защитой. RuleGuard AI на связи!'"
+                )
+                
+                completion = groq_client.chat.completions.create(
+                    model="llama-3.3-70b-versatile", 
+                    messages=[
+                        {"role": "system", "content": system_instruction},
+                        {"role": "user", "content": f"Данные бизнеса: {business}, Локация: {location}. Контекст сети: {web_data}"}
+                    ],
+                    temperature=0.4
+                )
+                push_text = completion.choices[0].message.content
+                bot.send_message(user_id, f"🛡️ <b>Ежедневный RuleGuard Радар</b>\n\n{push_text}", parse_mode="HTML")
             
     except Exception as e:
         print(f"Ошибка планировщика пушей: {e}")
