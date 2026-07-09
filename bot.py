@@ -14,7 +14,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 # 1. ТОКЕНЫ И НАСТРОЙКА
-TELEGRAM_TOKEN = "8811867508:AAHNM59kFNB4zkA3QT2CUoMMgV3qJC-0KxA"
+TELEGRAM_TOKEN = "8811867508:AAFxcE58OJbSbt9lmZHRFcpayMYfOE0AXLI"
 GROQ_API_KEY = "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"
 
 # Ссылка на твое будущее приложение на Render (мы впишем её сюда после создания на Render)
