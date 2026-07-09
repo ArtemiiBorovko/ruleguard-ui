@@ -208,7 +208,8 @@ async def handle_web_analysis(request: Request):
         
         # 3. Отправляем копию в чат Телеграма для удобства
         flag = "🇺🇸" if country == "USA" else "🇷🇺" if country == "Russia" else "🌐"
-        bot.send_message(user_id, f"{flag} *Новый анализ из приложения*\n\n{report}", parse_mode='Markdown')
+        safe_report = report.replace("<", "&lt;").replace(">", "&gt;")
+        bot.send_message(user_id, f"{flag} <b>Новый анализ из приложения</b>\n\n{safe_report}", parse_mode='HTML')
         
         # 4. Возвращаем отчет прямо на экран Mini App!
         return {"status": "success", "report": report}
