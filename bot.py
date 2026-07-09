@@ -5,7 +5,7 @@ import json
 import requests
 import threading
 from groq import Groq
-from ddgs import DDGS
+from duckduckgo_search import DDGS
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 
