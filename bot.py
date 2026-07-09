@@ -71,9 +71,9 @@ def save_user_data_extended(user_id, username=None, business=None, country=None,
     cursor.execute("SELECT user_name, business_description, country, location, legal_form, push_time, timezone FROM users WHERE user_id = ?", (user_id,))
     row = cursor.fetchone()
     
-    # Пытаемся автоматически добавить колонку, если её ещё нет в БД
+    # Теперь дефолт в самой базе данных будет UTC
     try:
-        cursor.execute("ALTER TABLE users ADD COLUMN timezone TEXT DEFAULT 'Europe/Moscow'")
+        cursor.execute("ALTER TABLE users ADD COLUMN timezone TEXT DEFAULT 'UTC'")
     except sqlite3.OperationalError:
         pass
 
@@ -84,7 +84,8 @@ def save_user_data_extended(user_id, username=None, business=None, country=None,
         c_loc = location if location else row[3]
         c_form = legal_form if legal_form else row[4]
         c_push = push_time if push_time else row[5]
-        c_tz = timezone if timezone else (row[6] if len(row) > 6 else 'Europe/Moscow')
+        # Если в базе пусто, подставляем UTC
+        c_tz = timezone if timezone else (row[6] if len(row) > 6 and row[6] else 'UTC')
         
         cursor.execute('''
             UPDATE users 
@@ -95,7 +96,7 @@ def save_user_data_extended(user_id, username=None, business=None, country=None,
         cursor.execute('''
             INSERT INTO users (user_id, user_name, business_description, country, location, legal_form, push_time, timezone) 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (user_id, username, business, country, location, legal_form, push_time or '09:00', timezone or 'Europe/Moscow'))
+        ''', (user_id, username, business, country, location, legal_form, push_time or '09:00', timezone or 'UTC'))
         
     conn.commit()
     conn.close()
@@ -230,7 +231,6 @@ def send_daily_push_notifications():
     try:
         conn = sqlite3.connect('ruleguard.db')
         cursor = conn.cursor()
-        # Достаем push_time и timezone пользователей
         cursor.execute("SELECT user_id, user_name, business_description, location, push_time, timezone FROM users")
         all_users = cursor.fetchall()
         conn.close()
@@ -238,13 +238,14 @@ def send_daily_push_notifications():
         for user in all_users:
             user_id, username, business, location, push_time, user_tz = user
             if not location or not business: continue
-            if not user_tz: user_tz = 'Europe/Moscow'
+            
+            # Если у пользователя по какой-то причине нет таймзоны, считаем по UTC
+            if not user_tz: 
+                user_tz = 'UTC'
                 
-            # Проверяем, сколько сейчас времени ИМЕННО у этого пользователя в его городе
             tz = pytz.timezone(user_tz)
             user_current_time = datetime.now(tz).strftime("%H:%M")
             
-            # Если у него на часах наступило выбранное время (например, 09:00) — шлем пуш
             if user_current_time == push_time:
                 search_query = f"юридические изменения законы риски 2026 {location} {business}"
                 web_data = search_internet(search_query)
