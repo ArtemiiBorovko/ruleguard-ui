@@ -118,8 +118,10 @@
         .btn-submit {
             background-color: var(--accent-color); color: #000000; font-weight: 700;
             border: none; border-radius: 12px; padding: 14px; font-size: 15px; cursor: pointer;
+            display: flex; justify-content: center; align-items: center; gap: 8px;
         }
-        .btn-submit:active { transform: scale(0.98); }
+        .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-submit:active:not(:disabled) { transform: scale(0.98); }
         .theme-switch-box { display: flex; justify-content: space-between; align-items: center; }
 
         @keyframes fadeIn {
@@ -132,7 +134,6 @@
 
     <div class="container">
         
-        <!-- ЭКРАН 1: ГЛАВНАЯ -->
         <div id="screen-radar" class="app-screen active">
             <div class="card radar-box">
                 <i class="fa-solid fa-shield-halved" style="font-size: 46px; color: var(--accent-color);"></i>
@@ -151,7 +152,6 @@
             </div>
         </div>
 
-        <!-- ЭКРАН 2: БИЗНЕС -->
         <div id="screen-profile" class="app-screen">
             <div class="card">
                 <h3 style="margin: 0 0 4px 0;">Параметры бизнеса</h3>
@@ -181,11 +181,12 @@
                     <textarea id="description" placeholder="Опишите продукт, сотрудников..."></textarea>
                 </div>
 
-                <button class="btn-submit" onclick="saveProfileData()">Запустить анализ рисков</button>
+                <button class="btn-submit" id="submit-btn" onclick="saveProfileData()">
+                    <i class="fa-solid fa-bolt"></i> <span id="btn-text">Запустить анализ рисков</span>
+                </button>
             </div>
         </div>
 
-        <!-- ЭКРАН 3: АРХИВ -->
         <div id="screen-archive" class="app-screen">
             <div class="card">
                 <h3 style="margin: 0 0 4px 0;">Архив отчетов</h3>
@@ -199,7 +200,6 @@
             </div>
         </div>
 
-        <!-- ЭКРАН 4: ОПЦИИ -->
         <div id="screen-settings" class="app-screen">
             <div class="card">
                 <h3>Настройки системы</h3>
@@ -220,7 +220,6 @@
 
     </div>
 
-    <!-- НИЖНЕЕ МЕНЮ (TAB BAR) -->
     <div class="tab-bar">
         <div class="tab-item active" id="tab-radar" onclick="switchScreen('screen-radar', this)">
             <i class="fa-solid fa-shield-halved"></i> Главная
@@ -239,6 +238,10 @@
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand();
+
+        // Берем данные пользователя прямо из Телеграма
+        const userTelegramId = tg.initDataUnsafe?.user?.id || 542709522; 
+        const userTelegramName = tg.initDataUnsafe?.user?.first_name || "Предприниматель";
 
         function switchScreen(screenId, tabElement) {
             document.querySelectorAll('.app-screen').forEach(s => s.classList.remove('active'));
@@ -333,6 +336,7 @@
             `;
         }
 
+        // НОВОЕ: СКРЫТЫЙ ЗАПРОС НА RENDER БЕЗ ЗАКРЫТИЯ ОКНА
         function saveProfileData() {
             const country = document.getElementById('country').value;
             const location = document.getElementById('location').value.trim();
@@ -344,11 +348,15 @@
 
             saveSettingsToCache();
 
-            const mockReport = `Бизнес-профиль: ${bizForm} в ${location} (${country}).\nСпецифика: ${description}\n\n[Статус]: Подробный разбор рисков от Llama 3.3 отправлен вам в чат Телеграма!`;
-            localStorage.setItem('ruleguard_last_report', mockReport);
+            // Включаем анимацию загрузки на кнопке
+            const btn = document.getElementById('submit-btn');
+            const btnText = document.getElementById('btn-text');
+            btn.disabled = true;
+            btnText.innerText = "ИИ сканирует законы 2026...";
 
             const payload = {
-                action: "save_profile",
+                user_id: userTelegramId,
+                username: userTelegramName,
                 country: country,
                 location: location,
                 legal_form: bizForm,
@@ -356,7 +364,39 @@
                 push_time: pushTime
             };
 
-            tg.sendData(JSON.stringify(payload));
+            // Стучимся на твой развернутый Render сервер
+            fetch('https://ruleguard-backend.onrender.com/api/analyze', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(response => response.json())
+            .then(data => {
+                btn.disabled = false;
+                btnText.innerText = "Запустить анализ рисков";
+
+                if (data.status === 'success') {
+                    // Сохраняем реальный ответ от Llama 3.3 в кэш смартфона
+                    localStorage.setItem('ruleguard_last_report', data.report);
+                    
+                    // Обновляем экраны "Главная" и "Архив" прямо на лету!
+                    document.getElementById('ai-live-output').innerHTML = `<div class="analysis-output">${data.report}</div>`;
+                    updateArchiveView(data.report);
+                    
+                    // Переключаем пользователя на Главный экран, чтобы он увидел ответ
+                    switchScreen('screen-radar', document.getElementById('tab-radar'));
+                } else {
+                    alert('Ошибка ИИ-анализа: ' + data.message);
+                }
+            })
+            .catch(error => {
+                btn.disabled = false;
+                btnText.innerText = "Запустить анализ рисков";
+                console.error('Error:', error);
+                alert('Не удалось связаться с сервером Render.');
+            });
         }
 
         updateBusinessForms();
