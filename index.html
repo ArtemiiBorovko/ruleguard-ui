@@ -337,7 +337,7 @@
         }
 
         // НОВОЕ: СКРЫТЫЙ ЗАПРОС НА RENDER БЕЗ ЗАКРЫТИЯ ОКНА
-        function saveProfileData() {
+function saveProfileData() {
             const country = document.getElementById('country').value;
             const location = document.getElementById('location').value.trim();
             const bizForm = document.getElementById('biz_form').value;
@@ -348,7 +348,6 @@
 
             saveSettingsToCache();
 
-            // Включаем анимацию загрузки на кнопке
             const btn = document.getElementById('submit-btn');
             const btnText = document.getElementById('btn-text');
             btn.disabled = true;
@@ -361,7 +360,9 @@
                 location: location,
                 legal_form: bizForm,
                 business_details: description || "Miami Cafe Project",
-                push_time: pushTime
+                push_time: pushTime,
+                // ВОТ ЭТА СТРОЧКА: Автоматически берет часовой пояс из настроек смартфона!
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone 
             };
 
             // Стучимся на твой развернутый Render сервер
