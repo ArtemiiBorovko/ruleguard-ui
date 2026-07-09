@@ -68,15 +68,18 @@ def init_db():
 def save_user_data_extended(user_id, username=None, business=None, country=None, location=None, legal_form=None, push_time=None, timezone=None):
     conn = sqlite3.connect('ruleguard.db')
     cursor = conn.cursor()
+    
+    # 1. СНАЧАЛА гарантированно добавляем колонку timezone, если её нет
+    try:
+        cursor.execute("ALTER TABLE users ADD COLUMN timezone TEXT DEFAULT 'UTC'")
+        conn.commit()
+    except sqlite3.OperationalError:
+        pass  # Если колонка уже есть, SQLite выдаст ошибку, и мы её просто пропускаем
+
+    # 2. Теперь спокойно делаем SELECT — колонка точно существует!
     cursor.execute("SELECT user_name, business_description, country, location, legal_form, push_time, timezone FROM users WHERE user_id = ?", (user_id,))
     row = cursor.fetchone()
     
-    # Теперь дефолт в самой базе данных будет UTC
-    try:
-        cursor.execute("ALTER TABLE users ADD COLUMN timezone TEXT DEFAULT 'UTC'")
-    except sqlite3.OperationalError:
-        pass
-
     if row:
         c_name = username if username else row[0]
         c_bus = business if business else row[1]
@@ -84,8 +87,7 @@ def save_user_data_extended(user_id, username=None, business=None, country=None,
         c_loc = location if location else row[3]
         c_form = legal_form if legal_form else row[4]
         c_push = push_time if push_time else row[5]
-        # Если в базе пусто, подставляем UTC
-        c_tz = timezone if timezone else (row[6] if len(row) > 6 and row[6] else 'UTC')
+        c_tz = timezone if timezone else (row[6] if row[6] else 'UTC')
         
         cursor.execute('''
             UPDATE users 
