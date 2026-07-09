@@ -386,7 +386,7 @@ function saveProfileData() {
                     document.getElementById('ai-live-output').innerHTML = `<div class="analysis-output">${data.report}</div>`;
                     updateArchiveView(data.report);
                     
-                    // Переключаем пользователя на Главный экран, чтобы он увидел ответ
+                    // Переключаем пользователя на Главный экран, чтобы он увидел ответ.
                     switchScreen('screen-radar', document.getElementById('tab-radar'));
                 } else {
                     alert('Ошибка ИИ-анализа: ' + data.message);
