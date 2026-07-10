@@ -21,7 +21,7 @@ GROQ_API_KEY = "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"
 DATABASE_URL = "postgresql://admin:qmoBE1mBhoi4ANcFHBs8du2Jw3hSql3g@dpg-d97s2pnavr4c73di73hg-a/ruleguard"
 
 # Твой бесплатный ключ Tavily (1000 запросов в месяц)
-TAVILY_API_KEY = "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" # Замени на свой реальный токен, если этот тестовый
+TAVILY_API_KEY = "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" # Замени на свой реальный токен, если этот тестовый
 
 RENDER_APP_URL = os.getenv("RENDER_EXTERNAL_URL", "https://ruleguard-backend.onrender.com")
 
