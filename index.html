@@ -136,12 +136,10 @@
         .btn-submit:active:not(:disabled) { transform: scale(0.98); }
         .theme-switch-box { display: flex; justify-content: space-between; align-items: center; }
 
-        /* ИСПРАВЛЕНО: Добавили плавную анимацию для кнопки быстрого обновления при сборке экрана */
         #refresh-analysis-btn {
             animation: fadeIn 0.3s ease forwards;
         }
 
-        /* Лоадер для кнопки */
         .spinner {
             display: none;
             width: 16px;
@@ -151,6 +149,60 @@
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
         }
+
+        /* Стиль для интерактивного встроенного чата */
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 280px;
+            overflow-y: auto;
+            padding-right: 4px;
+            margin-bottom: 10px;
+        }
+        .chat-msg {
+            padding: 10px 14px;
+            border-radius: 12px;
+            font-size: 13px;
+            line-height: 1.4;
+            max-width: 85%;
+            word-wrap: break-word;
+            white-space: pre-line;
+        }
+        .chat-msg.user {
+            background-color: var(--accent-color);
+            color: #000000;
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
+        }
+        .chat-msg.assistant {
+            background-color: var(--input-bg);
+            color: var(--text-main);
+            border: 1px solid var(--card-border);
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
+        }
+        .chat-input-row {
+            display: flex;
+            gap: 8px;
+        }
+        .chat-input-row input {
+            padding: 10px;
+            font-size: 14px;
+            border-radius: 8px;
+        }
+        .chat-send-btn {
+            background-color: var(--accent-color);
+            color: #000000;
+            border: none;
+            border-radius: 8px;
+            padding: 0 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
@@ -186,6 +238,19 @@
                 <h4 style="margin: 0 0 4px 0;"><i class="fa-solid fa-brain" style="color: #30D158;"></i> Последний анализ:</h4>
                 <div id="ai-live-output" style="font-size: 14px; color: var(--text-muted);">
                     Загрузка актуального отчета из базы данных...
+                </div>
+            </div>
+
+            <div class="card" id="webapp-chat-card">
+                <h4 style="margin: 0 0 8px 0;"><i class="fa-solid fa-comments" style="color: #30D158;"></i> Обсуждение и уточнения:</h4>
+                <div class="chat-container" id="chat-messages-box">
+                    <div class="chat-msg assistant">Задайте любой уточняющий вопрос по вашему бизнесу или отчету прямо здесь.</div>
+                </div>
+                <div class="chat-input-row">
+                    <input type="text" id="chat-user-input" placeholder="Задать вопрос юристу..." onkeydown="if(event.key==='Enter') sendChatMessage()">
+                    <button class="chat-send-btn" id="chat-send-btn" onclick="sendChatMessage()">
+                        <i class="fa-solid fa-paper-plane"></i>
+                    </button>
                 </div>
             </div>
         </div>
@@ -323,9 +388,63 @@
                 console.error("Ошибка загрузки данных из БД:", err);
                 document.getElementById('ai-live-output').innerText = "Не удалось загрузить данные из облака.";
             });
+
+            // Загружаем историю встроенного чата
+            loadChatHistoryFromServer();
         }
 
-        // ИСПРАВЛЕНО: Стучимся на выделенный эндпоинт реанализа бэкенда по ID пользователя
+        function loadChatHistoryFromServer() {
+            fetch(`${BACKEND_URL}/api/chat/history/${userTelegramId}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success' && data.history.length > 0) {
+                    const box = document.getElementById('chat-messages-box');
+                    box.innerHTML = '';
+                    data.history.forEach(m => {
+                        box.innerHTML += `<div class="chat-msg ${m.role}">${m.message_text}</div>`;
+                    });
+                    box.scrollTop = box.scrollHeight;
+                }
+            }).catch(e => console.error("Ошибка загрузки истории чата:", e));
+        }
+
+        function sendChatMessage() {
+            const input = document.getElementById('chat-user-input');
+            const text = input.value.trim();
+            if (!text) return;
+
+            const box = document.getElementById('chat-messages-box');
+            // Добавляем сообщение пользователя на экран мгновенно
+            box.innerHTML += `<div class="chat-msg user">${text}</div>`;
+            box.scrollTop = box.scrollHeight;
+            input.value = '';
+
+            const btn = document.getElementById('chat-send-btn');
+            btn.disabled = true;
+
+            fetch(`${BACKEND_URL}/api/chat/message`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ user_id: userTelegramId, text: text })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    box.innerHTML += `<div class="chat-msg assistant">${data.reply}</div>`;
+                } else {
+                    box.innerHTML += `<div class="chat-msg assistant">⚠️ Ошибка: ${data.message}</div>`;
+                }
+                box.scrollTop = box.scrollHeight;
+            })
+            .catch(err => {
+                console.error(err);
+                box.innerHTML += `<div class="chat-msg assistant">⚠️ Ошибка соединения с сервером.</div>`;
+            })
+            .finally(() => {
+                btn.disabled = false;
+            });
+        }
+
         function triggerFastAnalysis() {
             const btn = document.getElementById('refresh-analysis-btn');
             const spinner = document.getElementById('refresh-spinner');
@@ -391,7 +510,6 @@
             }).catch(e => console.error(e));
         }
 
-        // Тема оформления интерфейса
         function toggleTheme() {
             const currentTheme = document.body.getAttribute('data-theme');
             if (currentTheme === 'light') {
