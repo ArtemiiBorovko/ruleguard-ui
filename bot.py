@@ -324,6 +324,31 @@ def smart_ping_render():
 # =====================================================================
 # 5. ОБРАБОТЧИКИ ТЕЛЕГРАМ БОТА
 # =====================================================================
+
+@app.post("/api/reanalyze/{user_id}")
+async def handle_fast_reanalyze(user_id: int):
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text("SELECT country, location, legal_form, business_description FROM users WHERE user_id = :user_id"), {"user_id": user_id})
+            row = result.fetchone()
+            
+        if not row or not row[3]:
+            return {"status": "error", "message": "Профиль бизнеса не найден. Сначала заполните анкету!"}
+            
+        compiled_input = f"Страна: {row[0]}, Локация: {row[1]}. Форма: {row[2]}. Детали: {row[3]}"
+        
+        # Запускаем генерацию отчета с глубоким анализом интернета на 2026 год
+        report = generate_report_logic(user_id, compiled_input)
+        
+        # Дублируем отчет сообщением в чат Телеграма
+        flag = "🇺🇸" if row[0] == "USA" else "🇷🇺" if row[0] == "Russia" else "🌐"
+        safe_report = report.replace("<", "&lt;").replace(">", "&gt;")
+        bot.send_message(user_id, f"{flag} <b>🔄 Свежий экспресс-анализ</b>\n\n{safe_report}", parse_mode='HTML')
+        
+        return {"status": "success", "report": report}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     save_user_data(message.from_user.id, username=message.from_user.first_name)
