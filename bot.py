@@ -358,7 +358,6 @@ def read_root():
 async def get_webapp_chat_history(user_id: int):
     try:
         history = get_recent_chat_history(user_id, limit=20)
-        # Маппим под плоский формат для фронта
         formatted = [{"role": m["role"], "message_text": m["content"]} for m in history]
         return {"status": "success", "history": formatted}
     except Exception as e:
