@@ -9,10 +9,10 @@ from duckduckgo_search import DDGS
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 
-# Новые импорты для работы с PostgreSQL
+# Работа с PostgreSQL
 from sqlalchemy import create_engine, text
 
-# Библиотеки для веб-сервера
+# Веб-сервер
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -26,9 +26,7 @@ RENDER_APP_URL = os.getenv("RENDER_EXTERNAL_URL", "https://ruleguard-backend.onr
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 groq_client = Groq(api_key=GROQ_API_KEY)
 
-# Настройка движка базы данных PostgreSQL
 engine = create_engine(DATABASE_URL)
-
 app = FastAPI()
 
 app.add_middleware(
@@ -43,7 +41,6 @@ app.add_middleware(
 def init_db():
     """Создание таблиц пользователей и истории отчетов в PostgreSQL"""
     with engine.connect() as conn:
-        # Таблица пользователей
         conn.execute(text('''
             CREATE TABLE IF NOT EXISTS users (
                 user_id BIGINT PRIMARY KEY, 
@@ -58,7 +55,6 @@ def init_db():
             )
         '''))
         
-        # Таблица отчетов (НАШ АРХИВ / ИСТОРИЯ)
         conn.execute(text('''
             CREATE TABLE IF NOT EXISTS reports (
                 id SERIAL PRIMARY KEY,
@@ -72,18 +68,17 @@ def init_db():
 
 def save_user_data_extended(user_id, username=None, business=None, country=None, location=None, legal_form=None, push_time=None, timezone=None):
     with engine.connect() as conn:
-        # Проверяем, есть ли уже пользователь
         result = conn.execute(text("SELECT user_name, business_description, country, location, legal_form, push_time, timezone FROM users WHERE user_id = :user_id"), {"user_id": user_id})
         row = result.fetchone()
         
         if row:
-            c_name = username if username else row[0]
-            c_bus = business if business else row[1]
-            c_country = country if country else row[2]
-            c_loc = location if location else row[3]
-            c_form = legal_form if legal_form else row[4]
-            c_push = push_time if push_time else row[5]
-            c_tz = timezone if timezone else (row[6] if row[6] else 'UTC')
+            c_name = username if username is not None else row[0]
+            c_bus = business if business is not None else row[1]
+            c_country = country if country is not None else row[2]
+            c_loc = location if location is not None else row[3]
+            c_form = legal_form if legal_form is not None else row[4]
+            c_push = push_time if push_time is not None else row[5]
+            c_tz = timezone if timezone is not None else (row[6] if row[6] else 'UTC')
             
             conn.execute(text('''
                 UPDATE users 
@@ -96,8 +91,8 @@ def save_user_data_extended(user_id, username=None, business=None, country=None,
                 INSERT INTO users (user_id, user_name, business_description, country, location, legal_form, push_time, timezone) 
                 VALUES (:user_id, :name, :bus, :country, :loc, :form, :push, :tz)
             '''), {
-                "user_id": user_id, "name": username, "bus": business, "country": country, 
-                "loc": location, "form": legal_form, "push": push_time or '09:00', "tz": timezone or 'UTC'
+                "user_id": user_id, "name": username or "Предприниматель", "bus": business or "Не указано", "country": country or "Не указано", 
+                "loc": location or "Не указано", "form": legal_form or "Не указано", "push": push_time or '09:00', "tz": timezone or 'UTC'
             })
         conn.commit()
 
@@ -113,7 +108,6 @@ def get_user_context(user_id):
     return "Новый пользователь."
 
 def save_report_to_archive(user_id, input_text, report_text):
-    """Добавление сгенерированного отчета в архив истории"""
     try:
         with engine.connect() as conn:
             conn.execute(text('''
@@ -136,13 +130,12 @@ def search_internet(query):
         print(f"Ошибка поиска: {e}")
     return "Не удалось найти свежие данные в сети."
 
-# 4. ЯДРО АНАЛИЗА (ГЕНЕРАЦИЯ ОТЧЕТА С ЧЕТКОЙ СТРУКТУРОЙ)
+# 4. ЯДРО АНАЛИЗА
 def generate_report_logic(user_id, current_input_text):
     user_memory = get_user_context(user_id)
     search_query = f"юридические риски штрафы законы 2026 {current_input_text}"
     web_data = search_internet(search_query)
 
-    # Пункт 3 из твоего списка: Жесткая и красивая шлифовка промпта
     system_instruction = (
         "Ты — профессиональный ИИ-юрист RuleGuard, защищающий бизнес от штрафов и проверок.\n"
         "Сделай глубокий анализ на основе предоставленных данных из сети на 2026 год.\n\n"
@@ -172,9 +165,7 @@ def generate_report_logic(user_id, current_input_text):
     )
     bot_response = completion.choices[0].message.content
     
-    # Пункт 1 из твоего списка: Логируем отчет в вечную таблицу истории отчетов
     save_report_to_archive(user_id, current_input_text, bot_response)
-        
     return bot_response
 
 def run_legal_analysis(message, current_input_text):
@@ -208,20 +199,23 @@ async def handle_web_analysis(request: Request):
         data = await request.json()
         user_id = int(data.get('user_id'))
         username = data.get('username', 'Предприниматель')
-        country = data.get('country', 'Не указано')
-        location = data.get('location', 'Не указано')
-        legal_form = data.get('legal_form', 'Не указано')
-        details = data.get('business_details', 'Не указано')
-        push_time = data.get('push_time', '09:00')
-        user_tz = data.get('timezone', 'UTC')
-        
-        compiled_input = f"Страна: {country}, Локация: {location}. Форма: {legal_form}. Детали: {details}"
+        country = data.get('country', None)
+        location = data.get('location', None)
+        legal_form = data.get('legal_form', None)
+        details = data.get('business_details', None)
+        push_time = data.get('push_time', None)
+        user_tz = data.get('timezone', None)
         
         save_user_data_extended(user_id, username, details, country, location, legal_form, push_time, user_tz)
+        
+        # Если это был просто апдейт настроек без смены описания бизнеса, не генерим отчет заново
+        if not details and not location:
+            return {"status": "success", "message": "Settings updated"}
+
+        compiled_input = f"Страна: {country or 'Не указано'}, Локация: {location or 'Не указано'}. Форма: {legal_form or 'Не указано'}. Детали: {details or 'Не указано'}"
         report = generate_report_logic(user_id, compiled_input)
         
         flag = "🇺🇸" if country == "USA" else "🇷🇺" if country == "Russia" else "🌐"
-        
         safe_report = report.replace("<", "&lt;").replace(">", "&gt;")
         bot.send_message(user_id, f"{flag} <b>Новый анализ из приложения</b>\n\n{safe_report}", parse_mode='HTML')
         
@@ -234,12 +228,10 @@ async def handle_web_analysis(request: Request):
 async def get_user_history(user_id: int):
     try:
         with engine.connect() as conn:
-            # 1. Получаем настройки пользователя
             user_res = conn.execute(text("SELECT push_time FROM users WHERE user_id = :user_id"), {"user_id": user_id})
             user_row = user_res.fetchone()
             push_time = user_row[0] if user_row else "09:00"
             
-            # 2. Получаем ВСЮ историю отчетов из таблицы архива (от новых к старым)
             reports_res = conn.execute(text(
                 "SELECT input_text, report_text, created_at FROM reports WHERE user_id = :user_id ORDER BY created_at DESC"
             ), {"user_id": user_id})
@@ -268,9 +260,7 @@ def send_daily_push_notifications():
         for user in all_users:
             user_id, username, business, location, push_time, user_tz = user
             if not location or not business: continue
-            
-            if not user_tz: 
-                user_tz = 'UTC'
+            if not user_tz: user_tz = 'UTC'
                 
             tz = pytz.timezone(user_tz)
             user_current_time = datetime.now(tz).strftime("%H:%M")
@@ -303,20 +293,19 @@ def smart_ping_render():
     current_hour = datetime.now().hour
     if 7 <= current_hour < 22:
         try:
-            print(f"⏰ [Пинг] Время {datetime.now().strftime('%H('%M')')}. Держим Render бодрствующим...")
+            print(f"⏰ [Пинг] Держим Render бодрствующим...")
             response = requests.get(RENDER_APP_URL, timeout=10)
             print(f"ℹ️ [Пинг] Ответ сервера: {response.status_code}")
         except Exception as e:
             print(f"⚠️ Ошибка автопина: {e}")
 
 # =====================================================================
-# 5. ОБРАБОТЧИКИ ТЕЛЕГРАМ БОТА И КНОПКА ПОВТОРНОГО АНАЛИЗА
+# 5. ОБРАБОТЧИКИ ТЕЛЕГРАМ БОТА
 # =====================================================================
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     save_user_data(message.from_user.id, username=message.from_user.first_name)
     
-    # Пункт 2 из твоего списка: Делаем удобное и постоянное меню кнопок в чате
     markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
     web_app_info = telebot.types.WebAppInfo("https://artemiiborovko.github.io/ruleguard-ui/")
     
@@ -327,7 +316,7 @@ def send_welcome(message):
     markup.add(btn_re_analyze)
     
     welcome_text = (
-        f"🛡️ **Привет, {message.from_user.first_name}! Бот RuleGuard запущен на вечной облачной базе данных PostgreSQL.**\n\n"
+        f"🛡️ **Привет, {message.from_user.first_name}! Бот RuleGuard запущен на базе PostgreSQL.**\n\n"
         "• Чтобы настроить профиль, нажми **Открыть анкету RuleGuard**.\n"
         "• Чтобы мгновенно обновить юридический отчет по сохраненному профилю, нажми **Повторить последний анализ**."
     )
@@ -337,7 +326,6 @@ def send_welcome(message):
 def handle_text(message):
     user_id = message.from_user.id
     
-    # Обработка кнопки повторного анализа прямо из чата
     if message.text == "🔄 Повторить последний анализ":
         bot.send_chat_action(message.chat.id, 'typing')
         with engine.connect() as conn:
@@ -345,7 +333,7 @@ def handle_text(message):
             row = result.fetchone()
             
         if not row or not row[3]:
-            bot.reply_to(message, "📭 У вас еще нет сохраненного профиля бизнеса. Пожалуйста, откройте анкету и заполните её хотя бы один раз!")
+            bot.reply_to(message, "📭 У вас еще нет сохраненного профиля бизнеса. Пожалуйста, откройте анкету и заполните её!")
             return
             
         compiled_input = f"Страна: {row[0]}, Локация: {row[1]}. Форма: {row[2]}. Детали: {row[3]}"
@@ -396,6 +384,6 @@ scheduler.add_job(send_daily_push_notifications, 'interval', minutes=1)
 scheduler.add_job(smart_ping_render, 'interval', minutes=10)
 scheduler.start()
 
-print("🚀 Робот готов. Подключена база PostgreSQL. Настроена таблица архива отчетов.")
+print("🚀 Робот готов. Подключена база PostgreSQL.")
 
 threading.Thread(target=bot.infinity_polling, daemon=True).start()
