@@ -4,6 +4,7 @@ import json
 import requests
 import threading
 import pytz
+import time
 from groq import Groq
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -19,9 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 TELEGRAM_TOKEN = "8811867508:AAFxcE58OJbSbt9lmZHRFcpayMYfOE0AXLI"
 GROQ_API_KEY = "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"
 DATABASE_URL = "postgresql://admin:qmoBE1mBhoi4ANcFHBs8du2Jw3hSql3g@dpg-d97s2pnavr4c73di73hg-a/ruleguard"
-
-# Твой бесплатный ключ Tavily (1000 запросов в месяц)
-TAVILY_API_KEY = "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" # Замени на свой реальный токен, если этот тестовый
+TAVILY_API_KEY = "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"
 
 RENDER_APP_URL = os.getenv("RENDER_EXTERNAL_URL", "https://ruleguard-backend.onrender.com")
 
@@ -39,9 +38,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# ЗАЩИТА ОТ ДВОЙНЫХ СПИСАНИЙ TAVILY (Локальный кэш дубликатов)
+DUPLICATE_PROTECTION = {}
+
 # 2. РАБОТА С БАЗОЙ ДАННЫХ (POSTGRESQL)
 def init_db():
-    """Создание таблиц пользователей, отчетов и истории чата в PostgreSQL"""
     with engine.connect() as conn:
         conn.execute(text('''
             CREATE TABLE IF NOT EXISTS users (
@@ -67,12 +68,11 @@ def init_db():
             )
         '''))
 
-        # ШАГ 1: Добавляем таблицу чата прямо сюда. База создаст её сама при старте!
         conn.execute(text('''
             CREATE TABLE IF NOT EXISTS chat_history (
                 id SERIAL PRIMARY KEY,
                 user_id BIGINT,
-                role TEXT, -- 'user' или 'assistant'
+                role TEXT, 
                 message_text TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -131,7 +131,6 @@ def save_report_to_archive(user_id, input_text, report_text):
     except Exception as e:
         print(f"Ошибка сохранения отчета в Архив: {e}")
 
-# Функции сохранения и получения сообщений диалога
 def save_chat_message(user_id, role, text_msg):
     try:
         with engine.connect() as conn:
@@ -152,22 +151,26 @@ def get_recent_chat_history(user_id, limit=6):
                 ORDER BY created_at DESC LIMIT :limit
             '''), {"user_id": user_id, "limit": limit})
             rows = result.fetchall()
-            # Разворачиваем, чтобы история шла от старых к новым
             return [{"role": r[0], "content": r[1]} for r in reversed(rows)]
     except Exception as e:
         print(f"Ошибка получения истории чата: {e}")
         return []
 
-# 3. ПОИСК В ИНТЕРНЕТЕ С ЛОГИРОВАНИЕМ ДЛЯ КОНТРОЛЯ
+# 3. ПОИСК В ИНТЕРНЕТЕ С ЗАЩИТОЙ ОТ ДУБЛИРОВАНИЯ
 def search_internet(query):
-    # Очищаем запрос от системного мусора, если он туда попал
-    clean_query = query.replace("Новый пользователь без настроенного профиля.", "")
-    clean_query = clean_query.replace("вопрос:", "").strip()
+    clean_query = query.replace("Новый пользователь без настроенного профиля.", "").replace("вопрос:", "").strip()
     
-    # Если запрос слишком короткий или абстрактный, не тратим лимиты поиска
     if len(clean_query) < 8 or "привет" in clean_query.lower() or "можешь" in clean_query.lower():
         print(f"ℹ️ [Tavily] Пропуск поиска для абстрактного запроса: '{clean_query}'")
         return "Пользователь задал общий вопрос, глубокий юридический поиск по базе законов не требуется."
+
+    # ЖЕСТКИЙ АНТИ-СПАМ: проверяем, не делали ли мы этот же поиск в последние 4 секунды
+    now = time.time()
+    if clean_query in DUPLICATE_PROTECTION:
+        last_time, last_result = DUPLICATE_PROTECTION[clean_query]
+        if now - last_time < 4.0:
+            print(f"🛡️ [БЛОК ДУБЛИКАТА] Повторный запрос Tavily заблокирован! Возвращаем закэшированный результат.")
+            return last_result
 
     try:
         print(f"🔍 [Tavily] Отправка запроса в поисковик: '{clean_query}'")
@@ -187,13 +190,15 @@ def search_internet(query):
             if results:
                 print(f"✅ [Tavily] Успешно найдено источников: {len(results)}")
                 context = "\n".join([f"Источник: {r['url']}\nТекст: {r['content']}" for r in results])
+                # Запоминаем результат, чтобы не тратить кредиты при дублировании процесса
+                DUPLICATE_PROTECTION[clean_query] = (now, context)
                 return context
             else:
                 print("⚠️ [Tavily] Поисковик вернул 0 результатов.")
         
     except Exception as e:
         print(f"❌ [Tavily] КРИТИЧЕСКАЯ ОШИБКА: {e}")
-    return "Не удалось найти свежие нормативные данные in сети."
+    return "Не удалось найти свежие нормативные данные в сети."
 
 # 4. ЯДРО АНАЛИЗА (Генерация отчетов из анкеты)
 def generate_report_logic(user_id, current_input_text):
@@ -233,28 +238,22 @@ def generate_report_logic(user_id, current_input_text):
     save_report_to_archive(user_id, current_input_text, bot_response)
     return bot_response
 
-# ШАГ 3: Умный чат с контекстом и памятью для сообщений в Telegram
+# 5. УМНЫЙ ЧАТ С КОНТЕНТОМ И ПАМЯТЬЮ
 def run_legal_analysis(message, current_input_text):
     bot.send_chat_action(message.chat.id, 'typing')
     user_id = message.from_user.id
     
-    # 1. Достаем контекст бизнеса пользователя
     user_context = get_user_context(user_id)
-    
-    # 2. Достаем последние 6 реплик диалога
     history_messages = get_recent_chat_history(user_id, limit=6)
 
-    # Формируем чистый поисковый запрос без системного мусора
     with engine.connect() as conn:
         res = conn.execute(text("SELECT country, location FROM users WHERE user_id = :user_id"), {"user_id": user_id})
         row = res.fetchone()
         loc_context = f"{row[0]} {row[1]}" if row else ""
 
-    # В Tavily пойдет только локация и сам конкретный вопрос
     search_query = f"{loc_context} {current_input_text}".strip()
     web_context = search_internet(search_query)
 
-    # Динамически вычисляем текущий год (код никогда не устареет)
     current_year = datetime.now().year
 
     system_instruction = (
@@ -264,15 +263,12 @@ def run_legal_analysis(message, current_input_text):
         f"Свежие данные из сети: {web_context}\n\n"
         "Отвечай коротко, по делу, понятным языком. Если пользователь просит уточнить пункт "
         "или задает связанный вопрос — используй историю сообщений. Пиши в уважительном тоне. "
-        "Никогда не пиши фраз вроде 'у меня нет доступа к 2026 году' или 'я всего лишь модель' — у тебя есть вся информация из сети выше."
+        "Никогда не пиши фраз вроде 'у меня нет доступа к 2026 году' — давай информацию прямо."
     )
 
-    # Собираем массив сообщений для Groq Llama
     messages_payload = [{"role": "system", "content": system_instruction}]
-    
     for msg in history_messages:
         messages_payload.append(msg)
-        
     messages_payload.append({"role": "user", "content": current_input_text})
 
     try:
@@ -323,7 +319,6 @@ async def handle_web_analysis(request: Request):
         bot.send_message(user_id, f"{flag} <b>Новый анализ из приложения</b>\n\n{safe_report}", parse_mode='HTML')
         
         return {"status": "success", "report": report}
-        
     except Exception as e:
         return {"status": "error", "message": str(e)}
         
@@ -364,6 +359,27 @@ async def get_user_history(user_id: int, tz: str = "UTC"):
                 })
                 
         return {"status": "success", "push_time": push_time, "history": history}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.post("/api/reanalyze/{user_id}")
+async def handle_fast_reanalyze(user_id: int):
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text("SELECT country, location, legal_form, business_description FROM users WHERE user_id = :user_id"), {"user_id": user_id})
+            row = result.fetchone()
+            
+        if not row or not row[3]:
+            return {"status": "error", "message": "Профиль бизнеса не найден. Сначала заполните анкету!"}
+            
+        compiled_input = f"Страна: {row[0]}, Локация: {row[1]}. Form: {row[2]}. Details: {row[3]}"
+        report = generate_report_logic(user_id, compiled_input)
+        
+        flag = "🇺🇸" if row[0] == "USA" else "🇷🇺" if row[0] == "Russia" else "🌐"
+        safe_report = report.replace("<", "&lt;").replace(">", "&gt;")
+        bot.send_message(user_id, f"{flag} <b>🔄 Свежий экспресс-анализ</b>\n\n{safe_report}", parse_mode='HTML')
+        
+        return {"status": "success", "report": report}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
@@ -421,27 +437,6 @@ def smart_ping_render():
 # =====================================================================
 # ОБРАБОТЧИКИ ТЕЛЕГРАМ БОТА
 # =====================================================================
-@app.post("/api/reanalyze/{user_id}")
-async def handle_fast_reanalyze(user_id: int):
-    try:
-        with engine.connect() as conn:
-            result = conn.execute(text("SELECT country, location, legal_form, business_description FROM users WHERE user_id = :user_id"), {"user_id": user_id})
-            row = result.fetchone()
-            
-        if not row or not row[3]:
-            return {"status": "error", "message": "Профиль бизнеса не найден. Сначала заполните анкету!"}
-            
-        compiled_input = f"Страна: {row[0]}, Локация: {row[1]}. Form: {row[2]}. Details: {row[3]}"
-        report = generate_report_logic(user_id, compiled_input)
-        
-        flag = "🇺🇸" if row[0] == "USA" else "🇷🇺" if row[0] == "Russia" else "🌐"
-        safe_report = report.replace("<", "&lt;").replace(">", "&gt;")
-        bot.send_message(user_id, f"{flag} <b>🔄 Свежий экспресс-анализ</b>\n\n{safe_report}", parse_mode='HTML')
-        
-        return {"status": "success", "report": report}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     save_user_data(message.from_user.id, username=message.from_user.first_name)
@@ -466,7 +461,6 @@ def send_welcome(message):
 @bot.message_handler(content_types=['text'])
 def handle_text(message):
     user_id = message.from_user.id
-    
     if message.text == "🔄 Повторить последний анализ":
         bot.send_chat_action(message.chat.id, 'typing')
         with engine.connect() as conn:
@@ -486,7 +480,6 @@ def handle_text(message):
         except Exception as e:
             bot.reply_to(message, f"⚠️ Ошибка генерации: {e}")
     else:
-        # Все остальные текстовые сообщения идут в чат со сквозной памятью
         run_legal_analysis(message, message.text)
 
 @bot.message_handler(content_types=['voice'])
@@ -518,27 +511,15 @@ def handle_voice(message):
     except Exception as e:
         bot.reply_to(message, f"⚠️ Ошибка голосового ввода: {str(e)}")
 
-# ПОСТАВЬ ЭТОТ ВАРИАНТ В САМЫЙ КОНЕЦ ФАЙЛА:
-
 # 6. ЗАПУСК ВСЕЙ СИСТЕМЫ 
 init_db()
 
-# Твой будильник (планировщик) остаётся полностью БЕЗ изменений!
 scheduler = BackgroundScheduler(daemon=True)
-
-# Твоя проверка каждую минуту для пушей — на месте!
 scheduler.add_job(send_daily_push_notifications, 'interval', minutes=1)
-
-# Твой пинг сервера каждые 10 минут (который спит ночью) — на месте!
 scheduler.add_job(smart_ping_render, 'interval', minutes=10)
-
-# Стартуем таймеры
 scheduler.start()
 
 print("🚀 Робот готов. Подключена база PostgreSQL + Tavily Search API.")
 
-# Вместо старой одиночной строчки мы пишем безопасный запуск бота:
-@app.on_event("startup")
-def start_bot_polling():
-    print("🤖 Запуск Telegram бот пуллинга в безопасном режиме...")
-    threading.Thread(target=bot.infinity_polling, kwargs={"skip_pending": True}, daemon=True).start()
+# Возвращаем классический, проверенный запуск обычного текстового чата
+threading.Thread(target=bot.infinity_polling, daemon=True).start()
