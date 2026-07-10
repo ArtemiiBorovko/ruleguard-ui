@@ -124,6 +124,14 @@
         .btn-submit:active:not(:disabled) { transform: scale(0.98); }
         .theme-switch-box { display: flex; justify-content: space-between; align-items: center; }
 
+        .archive-item {
+            background-color: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(8px); }
             to { opacity: 1; transform: translateY(0); }
@@ -147,7 +155,7 @@
             <div class="card" id="active-report-card">
                 <h4 style="margin: 0 0 4px 0;"><i class="fa-solid fa-brain" style="color: #30D158;"></i> Последний анализ:</h4>
                 <div id="ai-live-output" style="font-size: 14px; color: var(--text-muted);">
-                    Здесь отобразится информация после заполнения параметров бизнеса.
+                    Загрузка актуального отчета из базы данных...
                 </div>
             </div>
         </div>
@@ -190,14 +198,10 @@
         <div id="screen-archive" class="app-screen">
             <div class="card">
                 <h3 style="margin: 0 0 4px 0;">Архив отчетов</h3>
-                <p style="color: var(--text-muted); font-size: 13px; margin: 0;">Локальная история проверок бизнеса</p>
+                <p style="color: var(--text-muted); font-size: 13px; margin: 0;">Облачная история проверок из PostgreSQL</p>
             </div>
             <div id="archive-list">
-                <div class="card" style="opacity: 0.6; text-align: center; padding: 40px 20px;">
-                    <i class="fa-regular fa-folder-open" style="font-size: 32px; color: var(--text-muted); margin-bottom: 10px;"></i>
-                    <p style="margin: 0; font-size: 14px;">Архив пуст.</p>
                 </div>
-            </div>
         </div>
 
         <div id="screen-settings" class="app-screen">
@@ -239,7 +243,7 @@
         const tg = window.Telegram.WebApp;
         tg.expand();
 
-        // Берем данные пользователя прямо из Телеграма
+        const BACKEND_URL = 'https://ruleguard-backend.onrender.com';
         const userTelegramId = tg.initDataUnsafe?.user?.id || 542709522; 
         const userTelegramName = tg.initDataUnsafe?.user?.first_name || "Предприниматель";
 
@@ -252,26 +256,60 @@
             if (tabElement) tabElement.classList.add('active');
         }
 
-        function loadSettingsFromCache() {
+        // НОВОЕ: Скачивание всей истории отчетов напрямую из PostgreSQL при запуске Mini App
+        function loadDataFromPostgres() {
+            // Сначала выставляем тему
             const cachedTheme = localStorage.getItem('ruleguard_theme');
             if (cachedTheme === 'light') {
                 document.body.setAttribute('data-theme', 'light');
                 tg.setHeaderColor('#F2F2F7');
-            } else {
-                document.body.removeAttribute('data-theme');
-                tg.setHeaderColor('#0A0A0C');
             }
 
-            const cachedTime = localStorage.getItem('ruleguard_push_time');
-            if (cachedTime) {
-                document.getElementById('push_time').value = cachedTime;
-            }
+            fetch(`${BACKEND_URL}/api/history/${userTelegramId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    // Устанавливаем время пуша из облака
+                    document.getElementById('push_time').value = data.push_time;
 
-            const cachedReport = localStorage.getItem('ruleguard_last_report');
-            if (cachedReport) {
-                document.getElementById('ai-live-output').innerHTML = `<div class="analysis-output">${cachedReport}</div>`;
-                updateArchiveView(cachedReport);
-            }
+                    // Отрисовываем Архив отчетов
+                    const archiveList = document.getElementById('archive-list');
+                    if (data.history.length === 0) {
+                        document.getElementById('ai-live-output').innerText = "Здесь отобразится информация после заполнения параметров бизнеса.";
+                        archiveList.innerHTML = `
+                            <div class="card" style="opacity: 0.6; text-align: center; padding: 40px 20px;">
+                                <i class="fa-regular fa-folder-open" style="font-size: 32px; color: var(--text-muted); margin-bottom: 10px;"></i>
+                                <p style="margin: 0; font-size: 14px;">Архив пуст.</p>
+                            </div>`;
+                    } else {
+                        // Выводим самый последний отчет на главную
+                        document.getElementById('ai-live-output').innerHTML = `<div class="analysis-output">${data.history[0].report_text}</div>`;
+                        
+                        // Собираем весь архив списком
+                        archiveList.innerHTML = '';
+                        data.history.forEach(item => {
+                            const itemHtml = `
+                                <div class="archive-item">
+                                    <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:12px; font-weight:bold; color:var(--accent-color);">
+                                        <span>📋 ЭКСПРЕСС-АНАЛИЗ</span>
+                                        <span style="color:var(--text-muted);">${item.created_at}</span>
+                                    </div>
+                                    <div style="font-size:11px; color:var(--text-muted); margin-bottom:10px; background:rgba(255,255,255,0.03); padding:6px; border-radius:6px;">
+                                        <b>Контекст:</b> ${item.input_text}
+                                    </div>
+                                    <div style="font-size:13px; line-height:1.5; white-space:pre-line; color:var(--text-main);">
+                                        ${item.report_text}
+                                    </div>
+                                </div>`;
+                            archiveList.innerHTML += itemHtml;
+                        });
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка загрузки данных из БД:', error);
+                document.getElementById('ai-live-output').innerText = "Не удалось подключиться к облачной базе данных.";
+            });
         }
 
         function saveSettingsToCache() {
@@ -321,23 +359,7 @@
             });
         }
 
-        function updateArchiveView(reportText) {
-            const archiveList = document.getElementById('archive-list');
-            if(!archiveList) return;
-            const dateStr = new Date().toLocaleDateString('ru-RU', {hour: '2-digit', minute:'2-digit'});
-            
-            archiveList.innerHTML = `
-                <div class="card">
-                    <h5 style="margin:0; color:var(--accent-color);">📋 Отчет от ${dateStr}</h5>
-                    <div style="font-size:13px; line-height:1.4; max-height: 150px; overflow-y: auto; color:var(--text-muted); white-space: pre-line;">
-                        ${reportText}
-                    </div>
-                </div>
-            `;
-        }
-
-        // НОВОЕ: СКРЫТЫЙ ЗАПРОС НА RENDER БЕЗ ЗАКРЫТИЯ ОКНА
-function saveProfileData() {
+        function saveProfileData() {
             const country = document.getElementById('country').value;
             const location = document.getElementById('location').value.trim();
             const bizForm = document.getElementById('biz_form').value;
@@ -361,16 +383,12 @@ function saveProfileData() {
                 legal_form: bizForm,
                 business_details: description || "Miami Cafe Project",
                 push_time: pushTime,
-                // ВОТ ЭТА СТРОЧКА: Автоматически берет часовой пояс из настроек смартфона!
                 timezone: Intl.DateTimeFormat().resolvedOptions().timeZone 
             };
 
-            // Стучимся на твой развернутый Render сервер!
-            fetch('https://ruleguard-backend.onrender.com/api/analyze', {
+            fetch(`${BACKEND_URL}/api/analyze`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             })
             .then(response => response.json())
@@ -379,14 +397,8 @@ function saveProfileData() {
                 btnText.innerText = "Запустить анализ рисков";
 
                 if (data.status === 'success') {
-                    // Сохраняем реальный ответ от Llama 3.3 в кэш смартфона
-                    localStorage.setItem('ruleguard_last_report', data.report);
-                    
-                    // Обновляем экраны "Главная" и "Архив" прямо на лету!
-                    document.getElementById('ai-live-output').innerHTML = `<div class="analysis-output">${data.report}</div>`;
-                    updateArchiveView(data.report);
-                    
-                    // Переключаем пользователя на Главный экран, чтобы он увидел ответ.
+                    // Перезагружаем всю историю из базы заново, чтобы обновить экраны
+                    loadDataFromPostgres();
                     switchScreen('screen-radar', document.getElementById('tab-radar'));
                 } else {
                     alert('Ошибка ИИ-анализа: ' + data.message);
@@ -401,7 +413,8 @@ function saveProfileData() {
         }
 
         updateBusinessForms();
-        loadSettingsFromCache();
+        // Запуск синхронизации с PostgreSQL
+        loadDataFromPostgres();
     </script>
 </body>
 </html>
