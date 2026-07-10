@@ -228,20 +228,42 @@ async def handle_web_analysis(request: Request):
 async def get_user_history(user_id: int):
     try:
         with engine.connect() as conn:
-            user_res = conn.execute(text("SELECT push_time FROM users WHERE user_id = :user_id"), {"user_id": user_id})
+            # 1. Получаем настройки пользователя (время пуша и его таймзону)
+            user_res = conn.execute(text("SELECT push_time, timezone FROM users WHERE user_id = :user_id"), {"user_id": user_id})
             user_row = user_res.fetchone()
-            push_time = user_row[0] if user_row else "09:00"
             
+            push_time = "09:00"
+            user_tz_str = "UTC"
+            
+            if user_row:
+                push_time = user_row[0] if user_row[0] else "09:00"
+                user_tz_str = user_row[1] if user_row[1] else "UTC"
+            
+            try:
+                user_tz = pytz.timezone(user_tz_str)
+            except Exception:
+                user_tz = pytz.utc
+            
+            # 2. Получаем историю отчетов
             reports_res = conn.execute(text(
                 "SELECT input_text, report_text, created_at FROM reports WHERE user_id = :user_id ORDER BY created_at DESC"
             ), {"user_id": user_id})
             
             history = []
             for row in reports_res.fetchall():
+                utc_dt = row[2]
+                
+                # Если из базы пришло наивное время, говорим, что это UTC
+                if utc_dt.tzinfo is None:
+                    utc_dt = pytz.utc.localize(utc_dt)
+                
+                # Конвертируем в часовой пояс пользователя
+                local_dt = utc_dt.astimezone(user_tz)
+                
                 history.append({
                     "input_text": row[0],
                     "report_text": row[1],
-                    "created_at": row[2].strftime("%d.%m.%Y %H:%M")
+                    "created_at": local_dt.strftime("%d.%m.%Y %H:%M")
                 })
                 
         return {"status": "success", "push_time": push_time, "history": history}
