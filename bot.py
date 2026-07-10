@@ -1,5 +1,4 @@
 import telebot
-import sqlite3
 import os
 import json
 import requests
@@ -10,6 +9,9 @@ from duckduckgo_search import DDGS
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 
+# Новые импорты для работы с PostgreSQL
+from sqlalchemy import create_engine, text
+
 # Библиотеки для веб-сервера
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,17 +19,18 @@ from fastapi.middleware.cors import CORSMiddleware
 # 1. ТОКЕНЫ И НАСТРОЙКА
 TELEGRAM_TOKEN = "8811867508:AAFxcE58OJbSbt9lmZHRFcpayMYfOE0AXLI"
 GROQ_API_KEY = "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"
+DATABASE_URL = "postgresql://admin:qmoBE1mBhoi4ANcFHBs8du2Jw3hSql3g@dpg-d97s2pnavr4c73di73hg-a/ruleguard"
 
-# Ссылка на твое будущее приложение на Render (мы впишем её сюда после создания на Render)
 RENDER_APP_URL = os.getenv("RENDER_EXTERNAL_URL", "https://ruleguard-backend.onrender.com")
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 groq_client = Groq(api_key=GROQ_API_KEY)
 
-# Инициализируем веб-сервер
+# Настройка движка базы данных PostgreSQL
+engine = create_engine(DATABASE_URL)
+
 app = FastAPI()
 
-# Разрешаем твоему сайту на GitHub Pages общаться с сервером без блокировок
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -36,86 +39,90 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 2. РАБОТА С БАЗОЙ ДАННЫХ
+# 2. РАБОТА С БАЗОЙ ДАННЫХ (POSTGRESQL)
 def init_db():
-    conn = sqlite3.connect('ruleguard.db')
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            user_id INTEGER PRIMARY KEY, 
-            user_name TEXT, 
-            business_description TEXT, 
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    additional_columns = {
-        "push_time": "TEXT DEFAULT '09:00'",
-        "country": "TEXT",
-        "location": "TEXT",
-        "legal_form": "TEXT",
-        "last_report": "TEXT"
-    }
-    
-    for col_name, col_type in additional_columns.items():
-        try:
-            cursor.execute(f"ALTER TABLE users ADD COLUMN {col_name} {col_type}")
-        except sqlite3.OperationalError:
-            pass
-            
-    conn.commit()
-    conn.close()
+    """Создание таблиц пользователей и истории отчетов в PostgreSQL"""
+    with engine.connect() as conn:
+        # Таблица пользователей
+        conn.execute(text('''
+            CREATE TABLE IF NOT EXISTS users (
+                user_id BIGINT PRIMARY KEY, 
+                user_name TEXT, 
+                business_description TEXT, 
+                push_time TEXT DEFAULT '09:00',
+                country TEXT,
+                location TEXT,
+                legal_form TEXT,
+                timezone TEXT DEFAULT 'UTC',
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        '''))
+        
+        # Таблица отчетов (НАШ АРХИВ / ИСТОРИЯ)
+        conn.execute(text('''
+            CREATE TABLE IF NOT EXISTS reports (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT,
+                input_text TEXT,
+                report_text TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        '''))
+        conn.commit()
 
 def save_user_data_extended(user_id, username=None, business=None, country=None, location=None, legal_form=None, push_time=None, timezone=None):
-    conn = sqlite3.connect('ruleguard.db')
-    cursor = conn.cursor()
-    
-    # 1. СНАЧАЛА гарантированно добавляем колонку timezone, если её нет
-    try:
-        cursor.execute("ALTER TABLE users ADD COLUMN timezone TEXT DEFAULT 'UTC'")
+    with engine.connect() as conn:
+        # Проверяем, есть ли уже пользователь
+        result = conn.execute(text("SELECT user_name, business_description, country, location, legal_form, push_time, timezone FROM users WHERE user_id = :user_id"), {"user_id": user_id})
+        row = result.fetchone()
+        
+        if row:
+            c_name = username if username else row[0]
+            c_bus = business if business else row[1]
+            c_country = country if country else row[2]
+            c_loc = location if location else row[3]
+            c_form = legal_form if legal_form else row[4]
+            c_push = push_time if push_time else row[5]
+            c_tz = timezone if timezone else (row[6] if row[6] else 'UTC')
+            
+            conn.execute(text('''
+                UPDATE users 
+                SET user_name = :name, business_description = :bus, country = :country, location = :loc, 
+                    legal_form = :form, push_time = :push, timezone = :tz, updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = :user_id
+            '''), {"name": c_name, "bus": c_bus, "country": c_country, "loc": c_loc, "form": c_form, "push": c_push, "tz": c_tz, "user_id": user_id})
+        else:
+            conn.execute(text('''
+                INSERT INTO users (user_id, user_name, business_description, country, location, legal_form, push_time, timezone) 
+                VALUES (:user_id, :name, :bus, :country, :loc, :form, :push, :tz)
+            '''), {
+                "user_id": user_id, "name": username, "bus": business, "country": country, 
+                "loc": location, "form": legal_form, "push": push_time or '09:00', "tz": timezone or 'UTC'
+            })
         conn.commit()
-    except sqlite3.OperationalError:
-        pass  # Если колонка уже есть, SQLite выдаст ошибку, и мы её просто пропускаем
-
-    # 2. Теперь спокойно делаем SELECT — колонка точно существует!
-    cursor.execute("SELECT user_name, business_description, country, location, legal_form, push_time, timezone FROM users WHERE user_id = ?", (user_id,))
-    row = cursor.fetchone()
-    
-    if row:
-        c_name = username if username else row[0]
-        c_bus = business if business else row[1]
-        c_country = country if country else row[2]
-        c_loc = location if location else row[3]
-        c_form = legal_form if legal_form else row[4]
-        c_push = push_time if push_time else row[5]
-        c_tz = timezone if timezone else (row[6] if row[6] else 'UTC')
-        
-        cursor.execute('''
-            UPDATE users 
-            SET user_name = ?, business_description = ?, country = ?, location = ?, legal_form = ?, push_time = ?, timezone = ?, updated_at = CURRENT_TIMESTAMP
-            WHERE user_id = ?
-        ''', (c_name, c_bus, c_country, c_loc, c_form, c_push, c_tz, user_id))
-    else:
-        cursor.execute('''
-            INSERT INTO users (user_id, user_name, business_description, country, location, legal_form, push_time, timezone) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (user_id, username, business, country, location, legal_form, push_time or '09:00', timezone or 'UTC'))
-        
-    conn.commit()
-    conn.close()
 
 def save_user_data(user_id, username=None, business=None):
     save_user_data_extended(user_id, username=username, business=business)
 
 def get_user_context(user_id):
-    conn = sqlite3.connect('ruleguard.db')
-    cursor = conn.cursor()
-    cursor.execute("SELECT user_name, business_description, country, location, legal_form FROM users WHERE user_id = ?", (user_id,))
-    row = cursor.fetchone()
-    conn.close()
+    with engine.connect() as conn:
+        result = conn.execute(text("SELECT user_name, business_description, country, location, legal_form FROM users WHERE user_id = :user_id"), {"user_id": user_id})
+        row = result.fetchone()
     if row: 
         return f"Пользователь: {row[0] or 'Не указано'}. Страна: {row[2] or 'Не указано'}, Регион: {row[3] or 'Не указано'}, ОПФ: {row[4] or 'Не указано'}. Специфика: {row[1] or 'Не указано'}."
     return "Новый пользователь."
+
+def save_report_to_archive(user_id, input_text, report_text):
+    """Добавление сгенерированного отчета в архив истории"""
+    try:
+        with engine.connect() as conn:
+            conn.execute(text('''
+                INSERT INTO reports (user_id, input_text, report_text)
+                VALUES (:user_id, :input_text, :report_text)
+            '''), {"user_id": user_id, "input_text": input_text, "report_text": report_text})
+            conn.commit()
+    except Exception as e:
+        print(f"Ошибка сохранения отчета в Архив: {e}")
 
 # 3. ПОИСК В ИНТЕРНЕТЕ
 def search_internet(query):
@@ -129,23 +136,30 @@ def search_internet(query):
         print(f"Ошибка поиска: {e}")
     return "Не удалось найти свежие данные в сети."
 
-# 4. ЯДРО АНАЛИЗА (ГЕНЕРАЦИЯ ОТЧЕТА)
+# 4. ЯДРО АНАЛИЗА (ГЕНЕРАЦИЯ ОТЧЕТА С ЧЕТКОЙ СТРУКТУРОЙ)
 def generate_report_logic(user_id, current_input_text):
-    """Вынесенная чистая логика ИИ-анализа для использования и в боте, и на веб-сайте"""
     user_memory = get_user_context(user_id)
     search_query = f"юридические риски штрафы законы 2026 {current_input_text}"
     web_data = search_internet(search_query)
 
+    # Пункт 3 из твоего списка: Жесткая и красивая шлифовка промпта
     system_instruction = (
-        "Ты — профессиональный ИИ-юрист RuleGuard. Твоя цель — защитить бизнес пользователя.\n"
-        "Тебе предоставлены свежие результаты поиска из интернета. На основе этих данных "
-        "выдели 2-3 главных риска и предложи легальные пути их обхода. Отвечай на русском языке, структурировано."
+        "Ты — профессиональный ИИ-юрист RuleGuard, защищающий бизнес от штрафов и проверок.\n"
+        "Сделай глубокий анализ на основе предоставленных данных из сети на 2026 год.\n\n"
+        "Твой ответ ДОЛЖЕН строго следовать следующей структуре (используй Markdown для заголовков):\n"
+        "### 🔥 Главные юридические риски\n"
+        "Выдели 2-3 критических риска. Опиши конкретные штрафы или санкции в цифрах, если они есть в контексте.\n\n"
+        "### 🛡️ Инструкция по защите (Что проверить)\n"
+        "Пошаговые легальные действия для предпринимателя, чтобы полностью себя обезопасить.\n\n"
+        "### 📊 Уровень угрозы\n"
+        "Напиши одну строчку: Низкий, Средний или Высокий, и кратко обоснуй почему.\n\n"
+        "Отвечай уверенно, на русском языке, без лишней «воды» и общих фраз."
     )
     
     full_prompt = (
-        f"Данные из базы о юзере: {user_memory}\n"
-        f"АКТУАЛЬНЫЕ DАННЫЕ ИЗ ИНТЕРНЕТА:\n{web_data}\n\n"
-        f"Запрос пользователя: {current_input_text}"
+        f"Контекст профиля: {user_memory}\n"
+        f"АКТУАЛЬНЫЕ ДАННЫЕ СЕТИ НА 2026 ГОД:\n{web_data}\n\n"
+        f"Вводные данные для экспресс-анализа: {current_input_text}"
     )
     
     completion = groq_client.chat.completions.create(
@@ -154,24 +168,16 @@ def generate_report_logic(user_id, current_input_text):
             {"role": "system", "content": system_instruction},
             {"role": "user", "content": full_prompt}
         ],
-        temperature=0.3
+        temperature=0.25
     )
     bot_response = completion.choices[0].message.content
     
-    # Сохраняем готовый отчет в БД для Архива
-    try:
-        conn = sqlite3.connect('ruleguard.db')
-        cursor = conn.cursor()
-        cursor.execute("UPDATE users SET last_report = ? WHERE user_id = ?", (bot_response, user_id))
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        print(f"Ошибка сохранения отчета в БД: {e}")
+    # Пункт 1 из твоего списка: Логируем отчет в вечную таблицу истории отчетов
+    save_report_to_archive(user_id, current_input_text, bot_response)
         
     return bot_response
 
 def run_legal_analysis(message, current_input_text):
-    """Анализ для обычных сообщений в чате бота"""
     bot.send_chat_action(message.chat.id, 'typing')
     user_id = message.from_user.id
     telegram_name = message.from_user.first_name or "Пользователь"
@@ -185,16 +191,16 @@ def run_legal_analysis(message, current_input_text):
         bot_response = generate_report_logic(user_id, current_input_text)
         if len(current_input_text) > 15:
             save_user_data(user_id, username=telegram_name, business=current_input_text)
-        bot.reply_to(message, bot_response)
+        bot.reply_to(message, bot_response, parse_mode='Markdown')
     except Exception as e:
         bot.reply_to(message, f"⚠️ Ошибка ИИ Groq: {str(e)}")
 
 # =====================================================================
-# НОВОЕ: СЕРВЕРНЫЕ ЭНДПОИНТЫ ДЛЯ МИНИ-ПРИЛОЖЕНИЯ (БЕЗ ЗАКРЫТИЯ ОКНА)
+# СЕРВЕРНЫЕ ЭНДПОИНТЫ ДЛЯ МИНИ-ПРИЛОЖЕНИЯ
 # =====================================================================
 @app.get("/")
 def read_root():
-    return {"status": "online", "project": "RuleGuard AI Backend"}
+    return {"status": "online", "project": "RuleGuard AI PostgreSQL Backend"}
 
 @app.post("/api/analyze")
 async def handle_web_analysis(request: Request):
@@ -207,18 +213,15 @@ async def handle_web_analysis(request: Request):
         legal_form = data.get('legal_form', 'Не указано')
         details = data.get('business_details', 'Не указано')
         push_time = data.get('push_time', '09:00')
-        user_tz = data.get('timezone', 'Europe/Moscow') # Ловим таймзону смартфона
+        user_tz = data.get('timezone', 'UTC')
         
         compiled_input = f"Страна: {country}, Локация: {location}. Форма: {legal_form}. Детали: {details}"
         
-        # Сохраняем расширенные данные вместе с таймзоной в БД
         save_user_data_extended(user_id, username, details, country, location, legal_form, push_time, user_tz)
-        
         report = generate_report_logic(user_id, compiled_input)
         
         flag = "🇺🇸" if country == "USA" else "🇷🇺" if country == "Russia" else "🌐"
         
-        # ИСПРАВЛЕНО: Безопасный HTML-формат, чтобы не было ошибки 400 Bad Request
         safe_report = report.replace("<", "&lt;").replace(">", "&gt;")
         bot.send_message(user_id, f"{flag} <b>Новый анализ из приложения</b>\n\n{safe_report}", parse_mode='HTML')
         
@@ -228,21 +231,18 @@ async def handle_web_analysis(request: Request):
         return {"status": "error", "message": str(e)}
 
 # =====================================================================
-# ПЛАНИРОВЩИК: ПУШИ И УМНЫЙ ХАК ПРОТИВ УХОДА RENDER В СОН
+# ПЛАНИРОВЩИК ПУШЕЙ И АНТИ-СОН
 # =====================================================================
 def send_daily_push_notifications():
     try:
-        conn = sqlite3.connect('ruleguard.db')
-        cursor = conn.cursor()
-        cursor.execute("SELECT user_id, user_name, business_description, location, push_time, timezone FROM users")
-        all_users = cursor.fetchall()
-        conn.close()
+        with engine.connect() as conn:
+            result = conn.execute(text("SELECT user_id, user_name, business_description, location, push_time, timezone FROM users"))
+            all_users = result.fetchall()
         
         for user in all_users:
             user_id, username, business, location, push_time, user_tz = user
             if not location or not business: continue
             
-            # Если у пользователя по какой-то причине нет таймзоны, считаем по UTC
             if not user_tz: 
                 user_tz = 'UTC'
                 
@@ -274,37 +274,64 @@ def send_daily_push_notifications():
         print(f"Ошибка планировщика пушей: {e}")
 
 def smart_ping_render():
-    """ХАК: Пингуем себя с 07:00 до 22:00, чтобы сэкономить часы бесплатного тарифа"""
     current_hour = datetime.now().hour
-    
     if 7 <= current_hour < 22:
         try:
-            print(f"⏰ [Пинг] Время {datetime.now().strftime('%H:%M')}. Держим Render бодрствующим...")
+            print(f"⏰ [Пинг] Время {datetime.now().strftime('%H('%M')')}. Держим Render бодрствующим...")
             response = requests.get(RENDER_APP_URL, timeout=10)
             print(f"ℹ️ [Пинг] Ответ сервера: {response.status_code}")
         except Exception as e:
             print(f"⚠️ Ошибка автопина: {e}")
-    else:
-        print(f"🌙 [Пинг] Время {datetime.now().strftime('%H:%M')}. Ночной режим: позволяем Render уснуть.")
 
-# 5. ОБРАБОТЧИКИ ТЕЛЕГРАМ БОТА
+# =====================================================================
+# 5. ОБРАБОТЧИКИ ТЕЛЕГРАМ БОТА И КНОПКА ПОВТОРНОГО АНАЛИЗА
+# =====================================================================
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     save_user_data(message.from_user.id, username=message.from_user.first_name)
+    
+    # Пункт 2 из твоего списка: Делаем удобное и постоянное меню кнопок в чате
     markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
     web_app_info = telebot.types.WebAppInfo("https://artemiiborovko.github.io/ruleguard-ui/")
-    web_app_button = telebot.types.KeyboardButton(text="🚀 Открыть анкету RuleGuard", web_app=web_app_info)
-    markup.add(web_app_button)
+    
+    btn_open_app = telebot.types.KeyboardButton(text="🚀 Открыть анкету RuleGuard", web_app=web_app_info)
+    btn_re_analyze = telebot.types.KeyboardButton(text="🔄 Повторить последний анализ")
+    
+    markup.add(btn_open_app)
+    markup.add(btn_re_analyze)
     
     welcome_text = (
-        f"🛡️ **Привет, {message.from_user.first_name}! Бот RuleGuard перешел на серверную архитектуру.**\n\n"
-        "Открой приложение кнопкой ниже — теперь оно работает без закрытия окон!"
+        f"🛡️ **Привет, {message.from_user.first_name}! Бот RuleGuard запущен на вечной облачной базе данных PostgreSQL.**\n\n"
+        "• Чтобы настроить профиль, нажми **Открыть анкету RuleGuard**.\n"
+        "• Чтобы мгновенно обновить юридический отчет по сохраненному профилю, нажми **Повторить последний анализ**."
     )
     bot.reply_to(message, welcome_text, reply_markup=markup, parse_mode='Markdown')
 
 @bot.message_handler(content_types=['text'])
 def handle_text(message):
-    run_legal_analysis(message, message.text)
+    user_id = message.from_user.id
+    
+    # Обработка кнопки повторного анализа прямо из чата
+    if message.text == "🔄 Повторить последний анализ":
+        bot.send_chat_action(message.chat.id, 'typing')
+        with engine.connect() as conn:
+            result = conn.execute(text("SELECT country, location, legal_form, business_description FROM users WHERE user_id = :user_id"), {"user_id": user_id})
+            row = result.fetchone()
+            
+        if not row or not row[3]:
+            bot.reply_to(message, "📭 У вас еще нет сохраненного профиля бизнеса. Пожалуйста, откройте анкету и заполните её хотя бы один раз!")
+            return
+            
+        compiled_input = f"Страна: {row[0]}, Локация: {row[1]}. Форма: {row[2]}. Детали: {row[3]}"
+        bot.reply_to(message, "⏳ *Запрашиваю новые законы 2026 года и перегенерирую отчет...*", parse_mode='Markdown')
+        
+        try:
+            report = generate_report_logic(user_id, compiled_input)
+            bot.send_message(user_id, f"🔄 **Свежий повторный анализ профиля:**\n\n{report}", parse_mode='Markdown')
+        except Exception as e:
+            bot.reply_to(message, f"⚠️ Ошибка генерации: {e}")
+    else:
+        run_legal_analysis(message, message.text)
 
 @bot.message_handler(content_types=['voice'])
 def handle_voice(message):
@@ -335,24 +362,14 @@ def handle_voice(message):
     except Exception as e:
         bot.reply_to(message, f"⚠️ Ошибка: {str(e)}")
 
-# Оставляем старый метод для подстраховки, если кто-то нажмет кнопку в старой версии сайта
-@bot.message_handler(content_types=['web_app_data'])
-def handle_web_app_data(message):
-    bot.reply_to(message, "⚠️ Пожалуйста, обновите приложение (Ctrl+F5). Переходим на серверный анализ!")
-
 # 6. ЗАПУСК ВСЕЙ СИСТЕМЫ
 init_db()
 
-# Запускаем фоновый планировщик задач
 scheduler = BackgroundScheduler(daemon=True)
-# Проверка пушей каждую минуту
 scheduler.add_job(send_daily_push_notifications, 'interval', minutes=1)
-# Умный пинг Render каждые 10 минут
 scheduler.add_job(smart_ping_render, 'interval', minutes=10)
 scheduler.start()
 
-print("🚀 Робот готов. Фоновые задачи (Пуши и Дневной Автопинг) запущены.")
+print("🚀 Робот готов. Подключена база PostgreSQL. Настроена таблица архива отчетов.")
 
-# Для работы на Render нам нужен объект FastAPI, запускаемый через uvicorn
-# Поэтому infinity_polling убираем в отдельный фоновый поток
 threading.Thread(target=bot.infinity_polling, daemon=True).start()
