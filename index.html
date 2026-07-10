@@ -321,6 +321,7 @@
         }
 
         // КНОПКА ФУНКЦИИ БЫСТРОГО ОБНОВЛЕНИЯ ИЗ ИНТЕРФЕЙСА
+// КНОПКА ФУНКЦИИ БЫСТРОГО ОБНОВЛЕНИЯ ИЗ ИНТЕРФЕЙСА
         function triggerFastAnalysis() {
             const btn = document.getElementById('refresh-analysis-btn');
             const spinner = document.getElementById('refresh-spinner');
@@ -332,21 +333,24 @@
             spinner.style.display = 'block';
             text.innerText = "ИИ перепроверяет риски 2026...";
 
-            // Эмулируем запуск повторного анализа
-            fetch(`${BACKEND_URL}/api/analyze`, {
+            // Стучимся на выделенный эндпоинт реанализа по ID пользователя
+            fetch(`${BACKEND_URL}/api/reanalyze/${userTelegramId}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_id: userTelegramId, username: userTelegramName })
+                headers: { 'Content-Type': 'application/json' }
             })
             .then(res => res.json())
             .then(data => {
                 if (data.status === 'success') {
+                    // Перезагружаем всю историю и обновляем отчет прямо на экране!
                     loadDataFromServer();
                 } else {
                     alert("Ошибка ИИ: " + data.message);
                 }
             })
-            .catch(err => console.error(err))
+            .catch(err => {
+                console.error(err);
+                alert("Не удалось связаться с сервером Render.");
+            })
             .finally(() => {
                 btn.disabled = false;
                 spinner.style.display = 'none';
