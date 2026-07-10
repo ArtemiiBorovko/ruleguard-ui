@@ -225,7 +225,7 @@ async def handle_web_analysis(request: Request):
         return {"status": "error", "message": str(e)}
         
 @app.get("/api/history/{user_id}")
-async def get_user_history(user_id: int):
+async def get_user_history(user_id: int, tz: str = "UTC"):
     try:
         with engine.connect() as conn:
             # 1. Получаем настройки пользователя (время пуша и его таймзону)
