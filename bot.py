@@ -4,7 +4,6 @@ import json
 import requests
 import threading
 import pytz
-import time
 from groq import Groq
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -20,6 +19,8 @@ from fastapi.middleware.cors import CORSMiddleware
 TELEGRAM_TOKEN = "8811867508:AAFxcE58OJbSbt9lmZHRFcpayMYfOE0AXLI"
 GROQ_API_KEY = "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"
 DATABASE_URL = "postgresql://admin:qmoBE1mBhoi4ANcFHBs8du2Jw3hSql3g@dpg-d97s2pnavr4c73di73hg-a/ruleguard"
+
+# Твой бесплатный ключ Tavily
 TAVILY_API_KEY = "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"
 
 RENDER_APP_URL = os.getenv("RENDER_EXTERNAL_URL", "https://ruleguard-backend.onrender.com")
@@ -38,11 +39,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ЗАЩИТА ОТ ДВОЙНЫХ СПИСАНИЙ TAVILY (Локальный кэш дубликатов)
-DUPLICATE_PROTECTION = {}
-
 # 2. РАБОТА С БАЗОЙ ДАННЫХ (POSTGRESQL)
 def init_db():
+    """Создание таблиц пользователей, отчетов, истории чата и кэша Tavily в PostgreSQL"""
     with engine.connect() as conn:
         conn.execute(text('''
             CREATE TABLE IF NOT EXISTS users (
@@ -72,8 +71,18 @@ def init_db():
             CREATE TABLE IF NOT EXISTS chat_history (
                 id SERIAL PRIMARY KEY,
                 user_id BIGINT,
-                role TEXT, 
+                role TEXT, -- 'user' или 'assistant'
                 message_text TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        '''))
+
+        # Надежная таблица кэширования для предотвращения параллельных дублей на Render
+        conn.execute(text('''
+            CREATE TABLE IF NOT EXISTS tavily_cache (
+                id SERIAL PRIMARY KEY,
+                query_hash TEXT UNIQUE,
+                search_result TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         '''))
@@ -156,24 +165,61 @@ def get_recent_chat_history(user_id, limit=6):
         print(f"Ошибка получения истории чата: {e}")
         return []
 
-# 3. ПОИСК В ИНТЕРНЕТЕ С ЗАЩИТОЙ ОТ ДУБЛИРОВАНИЯ
-def search_internet(query):
-    clean_query = query.replace("Новый пользователь без настроенного профиля.", "").replace("вопрос:", "").strip()
-    
-    if len(clean_query) < 8 or "привет" in clean_query.lower() or "можешь" in clean_query.lower():
-        print(f"ℹ️ [Tavily] Пропуск поиска для абстрактного запроса: '{clean_query}'")
-        return "Пользователь задал общий вопрос, глубокий юридический поиск по базе законов не требуется."
+# Интеллектуальный ИИ-диспетчер лимитов поиска
+def check_if_search_needed(history, current_input):
+    """Определяет, требуется ли вызов веб-поиска для ответа на текущую реплику"""
+    system_prompt = (
+        "Ты — технический диспетчер системы RuleGuard. Твоя задача — определить, "
+        "нужен ли глубокий поиск в актуальном интернете (Tavily API) для ответа на вопрос.\n"
+        "Ответь строго ОДНИМ словом: 'SEARCH', если пользователь просит найти новые законы, "
+        "актуальные штрафы, свежие новости по локации.\n"
+        "Ответь строго ОДНИМ словом: 'DIALOG', если вопрос — это уточнение прошлого отчета, "
+        "обычное рассуждение, приветствие или продолжение текущей беседы (например: 'что мне делать?', 'а если так?', "
+        "'поясни третий пункт', 'какой сейчас год', 'как быть')."
+    )
+    try:
+        messages = [{"role": "system", "content": system_prompt}]
+        for msg in history[-2:]: 
+            messages.append(msg)
+        messages.append({"role": "user", "content": f"Вопрос пользователя: {current_input}"})
+        
+        completion = groq_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=messages,
+            temperature=0.0,
+            max_tokens=5
+        )
+        decision = completion.choices[0].message.content.strip().upper()
+        print(f"🤖 [ИИ-Диспетчер] Вердикт для запроса '{current_input}': {decision}")
+        return "SEARCH" in decision
+    except Exception as e:
+        print(f"Ошибка диспетчера интентов: {e}")
+        return True
 
-    # ЖЕСТКИЙ АНТИ-СПАМ: проверяем, не делали ли мы этот же поиск в последние 4 секунды
-    now = time.time()
-    if clean_query in DUPLICATE_PROTECTION:
-        last_time, last_result = DUPLICATE_PROTECTION[clean_query]
-        if now - last_time < 4.0:
-            print(f"🛡️ [БЛОК ДУБЛИКАТА] Повторный запрос Tavily заблокирован! Возвращаем закэшированный результат.")
-            return last_result
+# 3. ПОИСК В ИНТЕРНЕТЕ С ЛОГИРОВАНИЕМ И ЗАЩИТОЙ
+def search_internet(query):
+    clean_query = query.replace("Новый пользователь без настроенного профиля.", "")
+    clean_query = clean_query.replace("вопрос:", "").strip()
+    
+    if len(clean_query) < 5:
+        return "Недостаточно данных для поиска."
+
+    # Проверка параллельных дубликатов в базе данных
+    try:
+        with engine.connect() as conn:
+            res = conn.execute(text('''
+                SELECT search_result FROM tavily_cache 
+                WHERE query_hash = :q AND created_at > CURRENT_TIMESTAMP - INTERVAL '15 seconds'
+            '''), {"q": clean_query})
+            row = res.fetchone()
+            if row:
+                print(f"🛡️ [Блокировка БД] Перехвачен параллельный дубликат! Возвращаем кэш.")
+                return row[0]
+    except Exception as e:
+        print(f"Ошибка кэша БД: {e}")
 
     try:
-        print(f"🔍 [Tavily] Отправка запроса в поисковик: '{clean_query}'")
+        print(f"🔍 [Tavily] Выполняю одиночный веб-поиск: '{clean_query}'")
         payload = {
             "api_key": TAVILY_API_KEY,
             "query": clean_query,
@@ -183,21 +229,26 @@ def search_internet(query):
         headers = {"Content-Type": "application/json"}
         response = requests.post("https://api.tavily.com/search", json=payload, headers=headers, timeout=15)
         
-        print(f"ℹ️ [Tavily] Ответ сервера: {response.status_code}")
-        
         if response.status_code == 200:
             results = response.json().get("results", [])
             if results:
-                print(f"✅ [Tavily] Успешно найдено источников: {len(results)}")
                 context = "\n".join([f"Источник: {r['url']}\nТекст: {r['content']}" for r in results])
-                # Запоминаем результат, чтобы не тратить кредиты при дублировании процесса
-                DUPLICATE_PROTECTION[clean_query] = (now, context)
+                
+                # Запись свежего результата поиска в кэш БД
+                try:
+                    with engine.connect() as conn:
+                        conn.execute(text('''
+                            INSERT INTO tavily_cache (query_hash, search_result) 
+                            VALUES (:q, :res) ON CONFLICT (query_hash) 
+                            DO UPDATE SET search_result = :res, created_at = CURRENT_TIMESTAMP
+                        '''), {"q": clean_query, "res": context})
+                        conn.commit()
+                except Exception as db_err:
+                    print(f"Ошибка сохранения кэша: {db_err}")
+                    
                 return context
-            else:
-                print("⚠️ [Tavily] Поисковик вернул 0 результатов.")
-        
     except Exception as e:
-        print(f"❌ [Tavily] КРИТИЧЕСКАЯ ОШИБКА: {e}")
+        print(f"❌ [Tavily] Ошибка выполнения API-запроса: {e}")
     return "Не удалось найти свежие нормативные данные в сети."
 
 # 4. ЯДРО АНАЛИЗА (Генерация отчетов из анкеты)
@@ -246,13 +297,21 @@ def run_legal_analysis(message, current_input_text):
     user_context = get_user_context(user_id)
     history_messages = get_recent_chat_history(user_id, limit=6)
 
-    with engine.connect() as conn:
-        res = conn.execute(text("SELECT country, location FROM users WHERE user_id = :user_id"), {"user_id": user_id})
-        row = res.fetchone()
-        loc_context = f"{row[0]} {row[1]}" if row else ""
+    # Запускаем классификатор интента: нужен ли веб-поиск?
+    need_search = check_if_search_needed(history_messages, current_input_text)
+    
+    web_context = ""
+    if need_search:
+        with engine.connect() as conn:
+            res = conn.execute(text("SELECT country, location FROM users WHERE user_id = :user_id"), {"user_id": user_id})
+            row = res.fetchone()
+            loc_context = f"{row[0]} {row[1]}" if row else ""
 
-    search_query = f"{loc_context} {current_input_text}".strip()
-    web_context = search_internet(search_query)
+        search_query = f"{loc_context} {current_input_text}".strip()
+        web_context = search_internet(search_query)
+    else:
+        print(f"💡 [Экономия] Запрос определен как DIALOG. Поиск Tavily пропущен (0 кредитов).")
+        web_context = "Дополнительный веб-поиск не требовался. Отвечай, опираясь на имеющийся бизнес-профиль и контекст диалога."
 
     current_year = datetime.now().year
 
@@ -260,10 +319,10 @@ def run_legal_analysis(message, current_input_text):
         f"Ты — ИИ-юрист RuleGuard. Отвечай на вопросы пользователя в контексте его бизнеса.\n"
         f"Текущий год: {current_year}.\n"
         f"Данные бизнеса клиента: {user_context}\n"
-        f"Свежие данные из сети: {web_context}\n\n"
+        f"Свежие данные из сети (если запрашивались): {web_context}\n\n"
         "Отвечай коротко, по делу, понятным языком. Если пользователь просит уточнить пункт "
         "или задает связанный вопрос — используй историю сообщений. Пиши в уважительном тоне. "
-        "Никогда не пиши фраз вроде 'у меня нет доступа к 2026 году' — давай информацию прямо."
+        "Никогда не используй отговорок про отсутствие доступа к реальному времени — у тебя есть все необходимые вводные."
     )
 
     messages_payload = [{"role": "system", "content": system_instruction}]
@@ -275,7 +334,7 @@ def run_legal_analysis(message, current_input_text):
         completion = groq_client.chat.completions.create(
             model="llama-3.3-70b-versatile", 
             messages=messages_payload,
-            temperature=0.25
+            temperature=0.3
         )
         bot_response = completion.choices[0].message.content
         
@@ -521,5 +580,7 @@ scheduler.start()
 
 print("🚀 Робот готов. Подключена база PostgreSQL + Tavily Search API.")
 
-# Возвращаем классический, проверенный запуск обычного текстового чата
-threading.Thread(target=bot.infinity_polling, daemon=True).start()
+@app.on_event("startup")
+def start_bot_polling():
+    print("🤖 Запуск Telegram бот пуллинга в безопасном режиме...")
+    threading.Thread(target=bot.infinity_polling, kwargs={"skip_pending": True}, daemon=True).start()
