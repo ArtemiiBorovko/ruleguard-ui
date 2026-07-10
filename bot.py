@@ -159,25 +159,41 @@ def get_recent_chat_history(user_id, limit=6):
         return []
 
 # 3. ПОИСК В ИНТЕРНЕТЕ (ШАГ 2: Интеграция Tavily)
+# 3. ПОИСК В ИНТЕРНЕТЕ (С ЛОГИРОВАНИЕМ ДЛЯ КONTРОЛЯ)
 def search_internet(query):
+    # Очищаем запрос от системного мусора, если он туда попал
+    clean_query = query.replace("Новый пользователь без настроенного профиля.", "")
+    clean_query = clean_query.replace("вопрос:", "").strip()
+    
+    # Если запрос слишком короткий или абстрактный, не тратим лимиты поиска
+    if len(clean_query) < 8 or "привет" in clean_query.lower() or "можешь" in clean_query.lower():
+        print(f"ℹ️ [Tavily] Пропуск поиска для абстрактного запроса: '{clean_query}'")
+        return "Пользователь задал общий вопрос, глубокий юридический поиск по базе законов не требуется."
+
     try:
+        print(f"🔍 [Tavily] Отправка запроса в поисковик: '{clean_query}'")
         payload = {
             "api_key": TAVILY_API_KEY,
-            "query": query,
+            "query": clean_query,
             "search_depth": "advanced",
             "max_results": 3
         }
         headers = {"Content-Type": "application/json"}
         response = requests.post("https://api.tavily.com/search", json=payload, headers=headers, timeout=15)
         
+        print(f"ℹ️ [Tavily] Ответ сервера: {response.status_code}")
+        
         if response.status_code == 200:
             results = response.json().get("results", [])
             if results:
+                print(f"✅ [Tavily] Успешно найдено источников: {len(results)}")
                 context = "\n".join([f"Источник: {r['url']}\nТекст: {r['content']}" for r in results])
                 return context
-        print(f"Тавили вернул код: {response.status_code}")
+            else:
+                print("⚠️ [Tavily] Поисковик вернул 0 результатов.")
+        
     except Exception as e:
-        print(f"Ошибка поиска Tavily: {e}")
+        print(f"❌ [Tavily] КРИТИЧЕСКАЯ ОШИБКА: {e}")
     return "Не удалось найти свежие нормативные данные в сети."
 
 # 4. ЯДРО АНАЛИЗА (Генерация отчетов из анкеты)
