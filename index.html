@@ -98,58 +98,6 @@
             text-align: left;
         }
 
-        /* СТИЛИ ВСТРОЕННОГО ЧАТА */
-        .chat-container {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            max-height: 300px;
-            overflow-y: auto;
-            padding-right: 4px;
-            margin-bottom: 10px;
-        }
-        .chat-msg {
-            padding: 10px 14px;
-            border-radius: 14px;
-            font-size: 14px;
-            line-height: 1.4;
-            max-width: 85%;
-            word-break: break-word;
-        }
-        .chat-msg.user {
-            background-color: var(--accent-color);
-            color: #000000;
-            align-self: flex-end;
-            border-bottom-right-radius: 2px;
-        }
-        .chat-msg.assistant {
-            background-color: var(--input-bg);
-            color: var(--text-main);
-            align-self: flex-start;
-            border-bottom-left-radius: 2px;
-            border: 1px solid var(--card-border);
-        }
-        .chat-input-row {
-            display: flex;
-            gap: 8px;
-        }
-        .chat-input-row input {
-            flex: 1;
-        }
-        .btn-chat-send {
-            background-color: var(--accent-color);
-            color: #000000;
-            border: none;
-            border-radius: 10px;
-            padding: 0 16px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: background 0.2s;
-        }
-        .btn-chat-send:disabled { opacity: 0.5; }
-
         .tab-bar {
             position: fixed; bottom: 0; left: 0; right: 0;
             background-color: var(--tab-bg); border-top: 1px solid var(--card-border);
@@ -188,10 +136,12 @@
         .btn-submit:active:not(:disabled) { transform: scale(0.98); }
         .theme-switch-box { display: flex; justify-content: space-between; align-items: center; }
 
+        /* ИСПРАВЛЕНО: Добавили плавную анимацию для кнопки быстрого обновления при сборке экрана */
         #refresh-analysis-btn {
             animation: fadeIn 0.3s ease forwards;
         }
 
+        /* Лоадер для кнопки */
         .spinner {
             display: none;
             width: 16px;
@@ -236,19 +186,6 @@
                 <h4 style="margin: 0 0 4px 0;"><i class="fa-solid fa-brain" style="color: #30D158;"></i> Последний анализ:</h4>
                 <div id="ai-live-output" style="font-size: 14px; color: var(--text-muted);">
                     Загрузка актуального отчета из базы данных...
-                </div>
-            </div>
-
-            <div class="card" id="webapp-chat-card">
-                <h4 style="margin: 0 0 4px 0;"><i class="fa-solid fa-comments" style="color: #30D158;"></i> Обсудить с ИИ-Юристом:</h4>
-                <div class="chat-container" id="chat-messages-box">
-                    <div class="chat-msg assistant">Задайте любой уточняющий вопрос по вашему бизнесу прямо здесь.</div>
-                </div>
-                <div class="chat-input-row">
-                    <input type="text" id="chat-user-input" placeholder="Задать вопрос ИИ..." onkeypress="if(event.key === 'Enter') sendChatMessage()">
-                    <button class="btn-chat-send" id="chat-send-btn" onclick="sendChatMessage()">
-                        <i class="fa-solid fa-paper-plane"></i>
-                    </button>
                 </div>
             </div>
         </div>
@@ -386,77 +323,9 @@
                 console.error("Ошибка загрузки данных из БД:", err);
                 document.getElementById('ai-live-output').innerText = "Не удалось загрузить данные из облака.";
             });
-            
-            // Также подтягиваем историю встроенного чата
-            loadChatHistory();
         }
 
-        function loadChatHistory() {
-            fetch(`${BACKEND_URL}/api/chat/history/${userTelegramId}`)
-            .then(res => res.json())
-            .then(data => {
-                if(data.status === 'success' && data.history.length > 0) {
-                    const box = document.getElementById('chat-messages-box');
-                    box.innerHTML = '';
-                    data.history.forEach(msg => {
-                        const div = document.createElement('div');
-                        div.className = `chat-msg ${msg.role}`;
-                        div.innerText = msg.message_text;
-                        box.appendChild(div);
-                    });
-                    box.scrollTop = box.scrollHeight;
-                }
-            }).catch(e => console.error("Ошибка загрузки истории чата:", e));
-        }
-
-        // ВСТРОЕННЫЙ ЧАТ: Отправка сообщения из интерфейса Mini App
-        function sendChatMessage() {
-            const input = document.getElementById('chat-user-input');
-            const text = input.value.trim();
-            if(!text) return;
-
-            const box = document.getElementById('chat-messages-box');
-            const btn = document.getElementById('chat-send-btn');
-
-            // Отображаем сообщение юзера на экране сразу
-            const userDiv = document.createElement('div');
-            userDiv.className = 'chat-msg user';
-            userDiv.innerText = text;
-            box.appendChild(userDiv);
-            box.scrollTop = box.scrollHeight;
-
-            input.value = '';
-            input.disabled = true;
-            btn.disabled = true;
-
-            fetch(`${BACKEND_URL}/api/chat/message`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_id: userTelegramId, text: text })
-            })
-            .then(res => res.json())
-            .then(data => {
-                if(data.status === 'success') {
-                    const aiDiv = document.createElement('div');
-                    aiDiv.className = 'chat-msg assistant';
-                    aiDiv.innerText = data.reply;
-                    box.appendChild(aiDiv);
-                    box.scrollTop = box.scrollHeight;
-                } else {
-                    alert("Ошибка: " + data.message);
-                }
-            })
-            .catch(e => {
-                console.error(e);
-                alert("Ошибка соединения с сервером.");
-            })
-            .finally(() => {
-                input.disabled = false;
-                btn.disabled = false;
-                input.focus();
-            });
-        }
-
+        // ИСПРАВЛЕНО: Стучимся на выделенный эндпоинт реанализа бэкенда по ID пользователя
         function triggerFastAnalysis() {
             const btn = document.getElementById('refresh-analysis-btn');
             const spinner = document.getElementById('refresh-spinner');
@@ -510,3 +379,112 @@
 
         function updatePushTimeOnServer() {
             const pushTime = document.getElementById('push_time').value;
+            fetch(`${BACKEND_URL}/api/analyze`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: userTelegramId,
+                    username: userTelegramName,
+                    push_time: pushTime,
+                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone 
+                })
+            }).catch(e => console.error(e));
+        }
+
+        // Тема оформления интерфейса
+        function toggleTheme() {
+            const currentTheme = document.body.getAttribute('data-theme');
+            if (currentTheme === 'light') {
+                document.body.removeAttribute('data-theme');
+                localStorage.setItem('ruleguard_theme', 'dark');
+                tg.setHeaderColor('#0A0A0C');
+            } else {
+                document.body.setAttribute('data-theme', 'light');
+                localStorage.setItem('ruleguard_theme', 'light');
+                tg.setHeaderColor('#F2F2F7');
+            }
+        }
+
+        const forms = {
+            USA: [
+                { value: 'LLC', text: 'LLC (Limited Liability Company)' },
+                { value: 'C-Corp', text: 'C-Corporation' },
+                { value: 'Sole Proprietorship', text: 'Sole Proprietorship' }
+            ],
+            Russia: [
+                { value: 'ИП', text: 'ИП (Индивидуальный предприниматель)' },
+                { value: 'ООО', text: 'ООО (Общество с огр. ответственностью)' },
+                { value: 'Самозанятый', text: 'Самозанятость (НПД)' }
+            ],
+            Other: [
+                { value: 'Individual', text: 'Individual Entrepreneur' },
+                { value: 'Corporate', text: 'Corporate Entity' }
+            ]
+        };
+
+        function updateBusinessForms() {
+            const country = document.getElementById('country').value;
+            const formSelect = document.getElementById('biz_form');
+            formSelect.innerHTML = '';
+            forms[country].forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.value;
+                option.text = item.text;
+                formSelect.appendChild(option);
+            });
+        }
+
+        function saveProfileData() {
+            const country = document.getElementById('country').value;
+            const location = document.getElementById('location').value.trim();
+            const bizForm = document.getElementById('biz_form').value;
+            const description = document.getElementById('description').value.trim();
+            const pushTime = document.getElementById('push_time').value;
+
+            if (!location) { return alert('Укажите локацию!'); }
+
+            const btn = document.getElementById('submit-btn');
+            const btnText = document.getElementById('btn-text');
+            btn.disabled = true;
+            btnText.innerText = "ИИ сканирует законы 2026...";
+
+            const payload = {
+                user_id: userTelegramId,
+                username: userTelegramName,
+                country: country,
+                location: location,
+                legal_form: bizForm,
+                business_details: description || "Project Site",
+                push_time: pushTime,
+                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone 
+            };
+
+            fetch(`${BACKEND_URL}/api/analyze`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(response => response.json())
+            .then(data => {
+                btn.disabled = false;
+                btnText.innerText = "Запустить анализ рисков";
+                if (data.status === 'success') {
+                    loadDataFromServer();
+                    switchScreen('screen-radar', document.getElementById('tab-radar'));
+                } else {
+                    alert('Ошибка ИИ-анализа: ' + data.message);
+                }
+            })
+            .catch(error => {
+                btn.disabled = false;
+                btnText.innerText = "Запустить анализ рисков";
+                alert('Не удалось связаться с сервером Render.');
+            });
+        }
+
+        updateBusinessForms();
+        loadTheme();
+        loadDataFromServer();
+    </script>
+</body>
+</html>
