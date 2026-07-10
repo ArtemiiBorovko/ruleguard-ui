@@ -238,45 +238,49 @@ def generate_report_logic(user_id, current_input_text):
 def run_legal_analysis(message, current_input_text):
     bot.send_chat_action(message.chat.id, 'typing')
     user_id = message.from_user.id
-    telegram_name = message.from_user.first_name or "Предприниматель"
     
-    # Достаем контекст бизнеса пользователя
+    # 1. Достаем контекст бизнеса пользователя
     user_context = get_user_context(user_id)
     
-    # Достаем последние 6 реплик диалога из базы данных для эффекта памяти
+    # 2. Достаем последние 6 реплик диалога
     history_messages = get_recent_chat_history(user_id, limit=6)
 
-    # Ищем в сети контекст под конкретный вопрос пользователя
-    search_query = f"законы риски правила нюансы {user_context} вопрос: {current_input_text}"
+    # ИСПРАВЛЕНО: Формируем чистый поисковый запрос без системного мусора
+    # Извлекаем страну и город, если они есть в базе, чтобы сузить поиск
+    with engine.connect() as conn:
+        res = conn.execute(text("SELECT country, location FROM users WHERE user_id = :user_id"), {"user_id": user_id})
+        row = res.fetchone()
+        loc_context = f"{row[0]} {row[1]}" if row else ""
+
+    # В Tavily пойдет только локация и сам вопрос — без фраз "Новый пользователь..."
+    search_query = f"{loc_context} {current_input_text}".strip()
     web_context = search_internet(search_query)
 
     system_instruction = (
         f"Ты — ИИ-юрист RuleGuard. Отвечай на вопросы пользователя в контексте его бизнеса.\n"
+        f"Текущий год: 2026.\n"  # Явно задаем контекст времени
         f"Данные бизнеса клиента: {user_context}\n"
-        f"Свежие данные из сети: {web_context}\n\n"
-        "Отвечай коротко, по делу, понятным языком. Если пользователь просит уточнить пункт "
-        "или задает связанный вопрос — используй историю сообщений. Пиши в уважительном тоне."
+        f"Свежие данные из сети для справки:\n{web_context}\n\n"
+        "Отвечай коротко, по делу, опираясь на свежие данные из сети. Если конкретных данных в контексте нет, "
+        "сформулируй общие правила для указанной локации, но не пиши фраз вроде 'я всего лишь языковая модель' или 'у меня нет доступа к 2026 году'."
     )
 
     # Собираем массив сообщений для Groq Llama
     messages_payload = [{"role": "system", "content": system_instruction}]
     
-    # Наращиваем историю диалога, если она есть
     for msg in history_messages:
         messages_payload.append(msg)
         
-    # Добавляем текущий вопрос пользователя
     messages_payload.append({"role": "user", "content": current_input_text})
 
     try:
         completion = groq_client.chat.completions.create(
             model="llama-3.3-70b-versatile", 
             messages=messages_payload,
-            temperature=0.3
+            temperature=0.25  # Немного снизим температуру для большей точности
         )
         bot_response = completion.choices[0].message.content
         
-        # Записываем этот диалог в память базы данных
         save_chat_message(user_id, "user", current_input_text)
         save_chat_message(user_id, "assistant", bot_response)
         
