@@ -7,7 +7,6 @@ import pytz
 from groq import Groq
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
-import datetime
 
 # Работа с PostgreSQL
 from sqlalchemy import create_engine, text
@@ -159,8 +158,7 @@ def get_recent_chat_history(user_id, limit=6):
         print(f"Ошибка получения истории чата: {e}")
         return []
 
-# 3. ПОИСК В ИНТЕРНЕТЕ (ШАГ 2: Интеграция Tavily)
-# 3. ПОИСК В ИНТЕРНЕТЕ (С ЛОГИРОВАНИЕМ ДЛЯ КONTРОЛЯ)
+# 3. ПОИСК В ИНТЕРНЕТЕ С ЛОГИРОВАНИЕМ ДЛЯ КОНТРОЛЯ
 def search_internet(query):
     # Очищаем запрос от системного мусора, если он туда попал
     clean_query = query.replace("Новый пользователь без настроенного профиля.", "")
@@ -195,7 +193,7 @@ def search_internet(query):
         
     except Exception as e:
         print(f"❌ [Tavily] КРИТИЧЕСКАЯ ОШИБКА: {e}")
-    return "Не удалось найти свежие нормативные данные в сети."
+    return "Не удалось найти свежие нормативные данные in сети."
 
 # 4. ЯДРО АНАЛИЗА (Генерация отчетов из анкеты)
 def generate_report_logic(user_id, current_input_text):
@@ -246,18 +244,17 @@ def run_legal_analysis(message, current_input_text):
     # 2. Достаем последние 6 реплик диалога
     history_messages = get_recent_chat_history(user_id, limit=6)
 
-    # ИСПРАВЛЕНО: Формируем чистый поисковый запрос без системного мусора
-    # Извлекаем страну и город, если они есть в базе, чтобы сузить поиск
+    # Формируем чистый поисковый запрос без системного мусора
     with engine.connect() as conn:
         res = conn.execute(text("SELECT country, location FROM users WHERE user_id = :user_id"), {"user_id": user_id})
         row = res.fetchone()
         loc_context = f"{row[0]} {row[1]}" if row else ""
 
-    # В Tavily пойдет только локация и сам вопрос — без фраз "Новый пользователь..."
+    # В Tavily пойдет только локация и сам конкретный вопрос
     search_query = f"{loc_context} {current_input_text}".strip()
     web_context = search_internet(search_query)
 
-    # Извлекаем текущий год динамически
+    # Динамически вычисляем текущий год (код никогда не устареет)
     current_year = datetime.now().year
 
     system_instruction = (
@@ -266,7 +263,8 @@ def run_legal_analysis(message, current_input_text):
         f"Данные бизнеса клиента: {user_context}\n"
         f"Свежие данные из сети: {web_context}\n\n"
         "Отвечай коротко, по делу, понятным языком. Если пользователь просит уточнить пункт "
-        "или задает связанный вопрос — используй историю сообщений. Пиши в уважительном тоне."
+        "или задает связанный вопрос — используй историю сообщений. Пиши в уважительном тоне. "
+        "Никогда не пиши фраз вроде 'у меня нет доступа к 2026 году' или 'я всего лишь модель' — у тебя есть вся информация из сети выше."
     )
 
     # Собираем массив сообщений для Groq Llama
@@ -281,7 +279,7 @@ def run_legal_analysis(message, current_input_text):
         completion = groq_client.chat.completions.create(
             model="llama-3.3-70b-versatile", 
             messages=messages_payload,
-            temperature=0.25  # Немного снизим температуру для большей точности
+            temperature=0.25
         )
         bot_response = completion.choices[0].message.content
         
