@@ -518,14 +518,27 @@ def handle_voice(message):
     except Exception as e:
         bot.reply_to(message, f"⚠️ Ошибка голосового ввода: {str(e)}")
 
-# 6. ЗАПУСК ВСЕЙ СИСТЕМЫ
+# ПОСТАВЬ ЭТОТ ВАРИАНТ В САМЫЙ КОНЕЦ ФАЙЛА:
+
+# 6. ЗАПУСК ВСЕЙ СИСТЕМЫ 
 init_db()
 
+# Твой будильник (планировщик) остаётся полностью БЕЗ изменений!
 scheduler = BackgroundScheduler(daemon=True)
+
+# Твоя проверка каждую минуту для пушей — на месте!
 scheduler.add_job(send_daily_push_notifications, 'interval', minutes=1)
+
+# Твой пинг сервера каждые 10 минут (который спит ночью) — на месте!
 scheduler.add_job(smart_ping_render, 'interval', minutes=10)
+
+# Стартуем таймеры
 scheduler.start()
 
 print("🚀 Робот готов. Подключена база PostgreSQL + Tavily Search API.")
 
-threading.Thread(target=bot.infinity_polling, daemon=True).start()
+# Вместо старой одиночной строчки мы пишем безопасный запуск бота:
+@app.on_event("startup")
+def start_bot_polling():
+    print("🤖 Запуск Telegram бот пуллинга в безопасном режиме...")
+    threading.Thread(target=bot.infinity_polling, kwargs={"skip_pending": True}, daemon=True).start()
