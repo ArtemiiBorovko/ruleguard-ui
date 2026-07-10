@@ -265,23 +265,22 @@
         }
 
         // ЗАГРУЗКА ДАННЫХ НАПРЯМУЮ ИЗ POSTGRESQL БЭКЕНДА
+       // ЗАГРУЗКА ДАННЫХ НАПРЯМУЮ ИЗ POSTGRESQL БЭКЕНДА
         function loadDataFromServer() {
-            fetch(`${BACKEND_URL}/api/history/${userTelegramId}`)
+            const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            
+            // Передаем таймзону в query-параметре, чтобы бэкенд мог подхватить её при первой сессии
+            fetch(`${BACKEND_URL}/api/history/${userTelegramId}?tz=${encodeURIComponent(userTimeZone)}`)
             .then(res => res.json())
             .then(data => {
                 if (data.status === 'success') {
-                    // 1. Ставим время пуша из базы данных
                     if (data.push_time) {
                         document.getElementById('push_time').value = data.push_time;
                     }
                     
-                    // 2. Рендерим историю отчетов
                     if (data.history && data.history.length > 0) {
-                        // Последний отчет на главную
                         const lastReport = data.history[0].report_text;
                         document.getElementById('ai-live-output').innerHTML = `<div class="analysis-output">${lastReport}</div>`;
-                        
-                        // Заполняем вкладку архив
                         renderArchive(data.history);
                     } else {
                         document.getElementById('ai-live-output').innerText = "Здесь отобразится информация после заполнения параметров бизнеса.";
