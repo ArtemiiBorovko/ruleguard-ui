@@ -7,6 +7,7 @@ import pytz
 from groq import Groq
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
+import datetime
 
 # Работа с PostgreSQL
 from sqlalchemy import create_engine, text
@@ -256,13 +257,16 @@ def run_legal_analysis(message, current_input_text):
     search_query = f"{loc_context} {current_input_text}".strip()
     web_context = search_internet(search_query)
 
+    # Извлекаем текущий год динамически
+    current_year = datetime.now().year
+
     system_instruction = (
         f"Ты — ИИ-юрист RuleGuard. Отвечай на вопросы пользователя в контексте его бизнеса.\n"
-        f"Текущий год: 2026.\n"  # Явно задаем контекст времени
+        f"Текущий год: {current_year}.\n"
         f"Данные бизнеса клиента: {user_context}\n"
-        f"Свежие данные из сети для справки:\n{web_context}\n\n"
-        "Отвечай коротко, по делу, опираясь на свежие данные из сети. Если конкретных данных в контексте нет, "
-        "сформулируй общие правила для указанной локации, но не пиши фраз вроде 'я всего лишь языковая модель' или 'у меня нет доступа к 2026 году'."
+        f"Свежие данные из сети: {web_context}\n\n"
+        "Отвечай коротко, по делу, понятным языком. Если пользователь просит уточнить пункт "
+        "или задает связанный вопрос — используй историю сообщений. Пиши в уважительном тоне."
     )
 
     # Собираем массив сообщений для Groq Llama
