@@ -229,6 +229,32 @@ async def handle_web_analysis(request: Request):
         
     except Exception as e:
         return {"status": "error", "message": str(e)}
+        
+@app.get("/api/history/{user_id}")
+async def get_user_history(user_id: int):
+    try:
+        with engine.connect() as conn:
+            # 1. Получаем настройки пользователя
+            user_res = conn.execute(text("SELECT push_time FROM users WHERE user_id = :user_id"), {"user_id": user_id})
+            user_row = user_res.fetchone()
+            push_time = user_row[0] if user_row else "09:00"
+            
+            # 2. Получаем ВСЮ историю отчетов из таблицы архива (от новых к старым)
+            reports_res = conn.execute(text(
+                "SELECT input_text, report_text, created_at FROM reports WHERE user_id = :user_id ORDER BY created_at DESC"
+            ), {"user_id": user_id})
+            
+            history = []
+            for row in reports_res.fetchall():
+                history.append({
+                    "input_text": row[0],
+                    "report_text": row[1],
+                    "created_at": row[2].strftime("%d.%m.%Y %H:%M")
+                })
+                
+        return {"status": "success", "push_time": push_time, "history": history}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
 
 # =====================================================================
 # ПЛАНИРОВЩИК ПУШЕЙ И АНТИ-СОН
