@@ -136,13 +136,18 @@
         .btn-submit:active:not(:disabled) { transform: scale(0.98); }
         .theme-switch-box { display: flex; justify-content: space-between; align-items: center; }
 
+        /* ИСПРАВЛЕНО: Добавили плавную анимацию для кнопки быстрого обновления при сборке экрана */
+        #refresh-analysis-btn {
+            animation: fadeIn 0.3s ease forwards;
+        }
+
         /* Лоадер для кнопки */
         .spinner {
             display: none;
             width: 16px;
             height: 16px;
             border: 2px solid #000000;
-            border-vertical-color: transparent;
+            border-top-color: transparent;
             border-radius: 50%;
             animation: spin 0.8s linear infinite;
         }
@@ -320,8 +325,7 @@
             });
         }
 
-        // КНОПКА ФУНКЦИИ БЫСТРОГО ОБНОВЛЕНИЯ ИЗ ИНТЕРФЕЙСА
-// КНОПКА ФУНКЦИИ БЫСТРОГО ОБНОВЛЕНИЯ ИЗ ИНТЕРФЕЙСА
+        // ИСПРАВЛЕНО: Стучимся на выделенный эндпоинт реанализа бэкенда по ID пользователя
         function triggerFastAnalysis() {
             const btn = document.getElementById('refresh-analysis-btn');
             const spinner = document.getElementById('refresh-spinner');
@@ -333,7 +337,6 @@
             spinner.style.display = 'block';
             text.innerText = "ИИ перепроверяет риски 2026...";
 
-            // Стучимся на выделенный эндпоинт реанализа по ID пользователя
             fetch(`${BACKEND_URL}/api/reanalyze/${userTelegramId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' }
@@ -341,7 +344,6 @@
             .then(res => res.json())
             .then(data => {
                 if (data.status === 'success') {
-                    // Перезагружаем всю историю и обновляем отчет прямо на экране!
                     loadDataFromServer();
                 } else {
                     alert("Ошибка ИИ: " + data.message);
@@ -389,6 +391,7 @@
             }).catch(e => console.error(e));
         }
 
+        // Тема оформления интерфейса
         function toggleTheme() {
             const currentTheme = document.body.getAttribute('data-theme');
             if (currentTheme === 'light') {
