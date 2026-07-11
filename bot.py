@@ -41,7 +41,6 @@ app.add_middleware(
 
 # 2. РАБОТА С БАЗОЙ ДАННЫХ (POSTGRESQL)
 def init_db():
-    """Создание таблиц пользователей, отчетов, истории чата и кэша Tavily в PostgreSQL"""
     with engine.connect() as conn:
         conn.execute(text('''
             CREATE TABLE IF NOT EXISTS users (
@@ -71,13 +70,12 @@ def init_db():
             CREATE TABLE IF NOT EXISTS chat_history (
                 id SERIAL PRIMARY KEY,
                 user_id BIGINT,
-                role TEXT, -- 'user' или 'assistant'
+                role TEXT, 
                 message_text TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         '''))
 
-        # Таблица кэширования для предотвращения дублей
         conn.execute(text('''
             CREATE TABLE IF NOT EXISTS tavily_cache (
                 id SERIAL PRIMARY KEY,
@@ -138,7 +136,7 @@ def save_report_to_archive(user_id, input_text, report_text):
             '''), {"user_id": user_id, "input_text": input_text, "report_text": report_text})
             conn.commit()
     except Exception as e:
-        print(f"Ошибка сохранения отчета в Архив: {e}")
+        print(f"Ошибка сохранения отчета: {e}")
 
 def save_chat_message(user_id, role, text_msg):
     try:
@@ -165,17 +163,14 @@ def get_recent_chat_history(user_id, limit=6):
         print(f"Ошибка получения истории чата: {e}")
         return []
 
-# Интеллектуальный ИИ-диспетчер лимитов поиска
 def check_if_search_needed(history, current_input):
-    """Определяет, требуется ли вызов веб-поиска для ответа на текущую реплику"""
     system_prompt = (
         "Ты — технический диспетчер системы RuleGuard. Твоя задача — определить, "
         "нужен ли глубокий поиск в актуальном интернете (Tavily API) для ответа на вопрос.\n"
         "Ответь строго ОДНИМ словом: 'SEARCH', если пользователь просит найти новые законы, "
         "актуальные штрафы, свежие новости по локации.\n"
         "Ответь строго ОДНИМ словом: 'DIALOG', если вопрос — это уточнение прошлого отчета, "
-        "обычное рассуждение, приветствие или продолжение текущей беседы (например: 'что мне делать?', 'а если так?', "
-        "'поясни третий пункт', 'какой сейчас год', 'как быть')."
+        "обычное рассуждение, приветствие или продолжение текущей беседы."
     )
     try:
         messages = [{"role": "system", "content": system_prompt}]
@@ -190,21 +185,17 @@ def check_if_search_needed(history, current_input):
             max_tokens=5
         )
         decision = completion.choices[0].message.content.strip().upper()
-        print(f"🤖 [ИИ-Диспетчер] Вердикт для запроса '{current_input}': {decision}")
         return "SEARCH" in decision
     except Exception as e:
-        print(f"Ошибка диспетчера интентов: {e}")
         return True
 
-# 3. ПОИСК В ИНТЕРНЕТЕ С ЛОГИРОВАНИЕМ И ЗАЩИТОЙ
+# 3. ПОИСК В ИНТЕРНЕТЕ (БАЗОВЫЙ РЕЖИМ = 1 КРЕДИТ)
 def search_internet(query):
-    # Тотальная очистка поискового запроса для приведения к единому хэшу
     clean_query = query.lower()
     for trash in ["новый пользователь без настроенного профиля.", "вопрос:", "юридические риски штрафы законы актуальное", 
                   "изменения законы штрафы регуляция", "страна:", "локация:", "форма:", "детали:", "регион:", "опф:", "специфика бизнеса:"]:
         clean_query = clean_query.replace(trash, "")
     
-    # Убираем лишние знаки препинания, оставляем только ключевые слова
     for char in [".", ",", ";", ":", "!", "?", "-", "_"]:
         clean_query = clean_query.replace(char, " ")
         
@@ -213,7 +204,6 @@ def search_internet(query):
     if len(clean_query) < 4:
         return "Недостаточно данных для интернет-поиска."
 
-    # Проверка кэша в БД (Защита от параллельных гонок на Render)
     try:
         with engine.connect() as conn:
             res = conn.execute(text('''
@@ -222,17 +212,17 @@ def search_internet(query):
             '''), {"q": clean_query})
             row = res.fetchone()
             if row:
-                print(f"🛡️ [КЭШ ОПТИМИЗАЦИЯ] Перехвачен дублирующий запрос! Кредиты Tavily сохранены для: '{clean_query}'")
+                print(f"🛡️ [КЭШ] Используем кэшированные данные для: '{clean_query}'")
                 return row[0]
     except Exception as e:
-        print(f"Ошибка проверки кэша БД: {e}")
+        print(f"Ошибка проверки кэша: {e}")
 
     try:
-        print(f"🔍 [Tavily API] Реальное списание 1 кредита. Ищем: '{clean_query}'")
+        print(f"🔍 [Tavily API] Списание 1 кредита (Режим basic). Ищем: '{clean_query}'")
         payload = {
             "api_key": TAVILY_API_KEY,
             "query": clean_query,
-            "search_depth": "advanced",
+            "search_depth": "basic",  # ИЗМЕНЕНО С 'advanced' НА 'basic' ДЛЯ ЭКОНОМИИ КРЕДИТОВ
             "max_results": 3
         }
         headers = {"Content-Type": "application/json"}
@@ -242,8 +232,6 @@ def search_internet(query):
             results = response.json().get("results", [])
             if results:
                 context = "\n".join([f"Источник: {r['url']}\nТекст: {r['content']}" for r in results])
-                
-                # Сохраняем в кэш
                 try:
                     with engine.connect() as conn:
                         conn.execute(text('''
@@ -254,28 +242,26 @@ def search_internet(query):
                         conn.commit()
                 except Exception as db_err:
                     print(f"Ошибка записи кэша: {db_err}")
-                    
                 return context
     except Exception as e:
         print(f"❌ [Tavily] Ошибка API: {e}")
     return "Не удалось найти свежие нормативные данные в сети."
 
-# 4. ЯДРО АНАЛИЗА (Генерация отчетов из анкеты)
+# 4. ЯДРО АНАЛИЗА
 def generate_report_logic(user_id, current_input_text):
-    # Вызываем стандартизированный поиск через кэш
     web_data = search_internet(current_input_text)
 
     system_instruction = (
         "Ты — профессиональный ИИ-юрист RuleGuard, защищающий бизнес от штрафов и проверок.\n"
         "Сделай глубокий анализ на основе предоставленных данных из сети на текущий момент.\n\n"
-        "Твой ответ ДОЛЖЕН строго следовать следующей структуре (используй Markdown для заголовков):\n"
+        "Твой ответ ДОЛЖЕН строго следовать следующей структуре:\n"
         "### 🔥 Главные юридические риски\n"
         "Выдели 2-3 критических риска. Опиши конкретные штрафы или санкции в цифрах, если они есть в контексте.\n\n"
         "### 🛡️ Инструкция по защите (Что проверить)\n"
         "Пошаговые легальные действия для предпринимателя, чтобы полностью себя обезопасить.\n\n"
         "### 📊 Уровень угрозы\n"
         "Напиши одну строчку: Низкий, Средний или Высокий, и кратко обоснуй почему.\n\n"
-        "Отвечай уверенно, на русском языке, без лишней «воды» и общих фраз."
+        "Отвечай уверенно, на русском языке, без лишней «воды»."
     )
     
     user_memory = get_user_context(user_id)
@@ -298,7 +284,6 @@ def generate_report_logic(user_id, current_input_text):
     save_report_to_archive(user_id, current_input_text, bot_response)
     return bot_response
 
-# Вспомогательная функция сборки ответа для чата
 def get_legal_chat_reply(user_id, current_input_text):
     user_context = get_user_context(user_id)
     history_messages = get_recent_chat_history(user_id, limit=6)
@@ -315,7 +300,6 @@ def get_legal_chat_reply(user_id, current_input_text):
         search_query = f"{loc_context} {current_input_text}".strip()
         web_context = search_internet(search_query)
     else:
-        print(f"💡 [Экономия] Поиск Tavily пропущен.")
         web_context = "Дополнительный веб-поиск не требовался."
 
     current_year = datetime.now().year
@@ -325,8 +309,7 @@ def get_legal_chat_reply(user_id, current_input_text):
         f"Текущий год: {current_year}.\n"
         f"Данные бизнеса клиента: {user_context}\n"
         f"Свежие данные из сети (если запрашивались): {web_context}\n\n"
-        "Отвечай коротко, по делу, понятным языком. Если пользователь просит уточнить пункт "
-        "или задает связанный вопрос — используй историю сообщений. Пиши в уважительном тоне."
+        "Отвечай коротко, по делу, понятным языком. Если пользователь просто здоровается или общается, поддерживай диалог. Пиши в уважительном тоне."
     )
 
     messages_payload = [{"role": "system", "content": system_instruction}]
@@ -345,7 +328,6 @@ def get_legal_chat_reply(user_id, current_input_text):
     save_chat_message(user_id, "assistant", bot_response)
     return bot_response
 
-# 5. УМНЫЙ ЧАТ С КОНТЕНТОМ И ПАМЯТЬЮ ДЛЯ КЛАССИЧЕСКОГО ТГ
 def run_legal_analysis(message, current_input_text):
     bot.send_chat_action(message.chat.id, 'typing')
     user_id = message.from_user.id
@@ -360,7 +342,7 @@ def run_legal_analysis(message, current_input_text):
 # =====================================================================
 @app.get("/")
 def read_root():
-    return {"status": "online", "project": "RuleGuard AI PostgreSQL + Tavily Search"}
+    return {"status": "online"}
 
 @app.get("/api/chat/history/{user_id}")
 async def get_webapp_chat_history(user_id: int):
@@ -377,10 +359,7 @@ async def handle_webapp_chat_message(request: Request):
         data = await request.json()
         user_id = int(data.get('user_id'))
         text_msg = data.get('text', '').strip()
-        
-        if not text_msg:
-            return {"status": "error", "message": "Empty text"}
-            
+        if not text_msg: return {"status": "error", "message": "Empty text"}
         reply = get_legal_chat_reply(user_id, text_msg)
         return {"status": "success", "reply": reply}
     except Exception as e:
@@ -400,79 +379,40 @@ async def handle_web_analysis(request: Request):
         user_tz = data.get('timezone', None)
         
         save_user_data_extended(user_id, username, details, country, location, legal_form, push_time, user_tz)
-        
-        if not details and not location:
-            return {"status": "success", "message": "Settings updated"}
+        if not details and not location: return {"status": "success"}
 
         compiled_input = f"{country or ''} {location or ''} {legal_form or ''} {details or ''}"
         report = generate_report_logic(user_id, compiled_input)
         
         flag = "🇺🇸" if country == "USA" else "🇷🇺" if country == "Russia" else "🌐"
-        safe_report = report.replace("<", "&lt;").replace(">", "&gt;")
-        bot.send_message(user_id, f"{flag} <b>Новый анализ из приложения</b>\n\n{safe_report}", parse_mode='HTML')
-        
+        bot.send_message(user_id, f"{flag} <b>Новый анализ из приложения</b>\n\n{report}", parse_mode='Markdown')
         return {"status": "success", "report": report}
     except Exception as e:
         return {"status": "error", "message": str(e)}
-        
+
 @app.get("/api/history/{user_id}")
 async def get_user_history(user_id: int, tz: str = "UTC"):
     try:
         with engine.connect() as conn:
             user_res = conn.execute(text("SELECT push_time, timezone FROM users WHERE user_id = :user_id"), {"user_id": user_id})
             user_row = user_res.fetchone()
+            push_time = user_row[0] if user_row and user_row[0] else "09:00"
+            user_tz_str = user_row[1] if user_row and user_row[1] else "UTC"
             
-            push_time = "09:00"
-            user_tz_str = "UTC"
+            try: tz_obj = pytz.timezone(user_tz_str)
+            except: tz_obj = pytz.utc
             
-            if user_row:
-                push_time = user_row[0] if user_row[0] else "09:00"
-                user_tz_str = user_row[1] if user_row[1] else "UTC"
-            
-            try:
-                user_tz = pytz.timezone(user_tz_str)
-            except Exception:
-                user_tz = pytz.utc
-            
-            reports_res = conn.execute(text(
-                "SELECT input_text, report_text, created_at FROM reports WHERE user_id = :user_id ORDER BY created_at DESC"
-            ), {"user_id": user_id})
-            
+            reports_res = conn.execute(text("SELECT input_text, report_text, created_at FROM reports WHERE user_id = :user_id ORDER BY created_at DESC"), {"user_id": user_id})
             history = []
             for row in reports_res.fetchall():
                 utc_dt = row[2]
-                if utc_dt.tzinfo is None:
-                    utc_dt = pytz.utc.localize(utc_dt)
-                
-                local_dt = utc_dt.astimezone(user_tz)
+                if utc_dt.tzinfo is None: utc_dt = pytz.utc.localize(utc_dt)
                 history.append({
                     "input_text": row[0],
                     "report_text": row[1],
-                    "created_at": local_dt.strftime("%d.%m.%Y %H:%M")
+                    "created_at": utc_dt.astimezone(tz_obj).strftime("%d.%m.%Y %H:%M")
                 })
-                
         return {"status": "success", "push_time": push_time, "history": history}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
-
-@app.post("/api/reanalyze/{user_id}")
-async def handle_fast_reanalyze(user_id: int):
-    try:
-        with engine.connect() as conn:
-            result = conn.execute(text("SELECT country, location, legal_form, business_description FROM users WHERE user_id = :user_id"), {"user_id": user_id})
-            row = result.fetchone()
-            
-        if not row or not row[3]:
-            return {"status": "error", "message": "Профиль бизнеса не найден. Сначала заполните анкету!"}
-            
-        compiled_input = f"{row[0]} {row[1]} {row[2]} {row[3]}"
-        report = generate_report_logic(user_id, compiled_input)
-        
-        flag = "🇺🇸" if row[0] == "USA" else "🇷🇺" if row[0] == "Russia" else "🌐"
-        safe_report = report.replace("<", "&lt;").replace(">", "&gt;")
-        bot.send_message(user_id, f"{flag} <b>🔄 Свежий экспресс-анализ</b>\n\n{safe_report}", parse_mode='HTML')
-        
-        return {"status": "success", "report": report}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
@@ -491,68 +431,41 @@ def send_daily_push_notifications():
             if not user_tz: user_tz = 'UTC'
                 
             tz = pytz.timezone(user_tz)
-            user_current_time = datetime.now(tz).strftime("%H:%M")
-            
-            if user_current_time == push_time:
-                # В фоновом потоке строим ТОЧНО ТАКУЮ ЖЕ строку, как и в веб-эндпоинте
+            if datetime.now(tz).strftime("%H:%M") == push_time:
                 search_query = f"{country or ''} {location or ''} {legal_form or ''} {business or ''}"
                 web_data = search_internet(search_query)
-                
-                system_instruction = (
-                    "Ты — ИИ-юрист RuleGuard. Твоя задача — прислать ежедневную сводку спокойствия.\n"
-                    "Пиши очень кратко (максимум 2-3 предложения). Скажи, есть ли критические изменения по законам на сегодня.\n"
-                    "Если всё спокойно, поддержи предпринимателя. В конце обязательно напиши фразу: 'Ваш бизнес под защитой. RuleGuard AI на связи!'"
-                )
                 
                 completion = groq_client.chat.completions.create(
                     model="llama-3.3-70b-versatile", 
                     messages=[
-                        {"role": "system", "content": system_instruction},
-                        {"role": "user", "content": f"Данные бизнеса: {business}, Локация: {location}. Контекст сети: {web_data}"}
+                        {"role": "system", "content": "Ты — ИИ-юрист RuleGuard. Напиши очень краткую сводку законов на сегодня (2-3 предложения)."},
+                        {"role": "user", "content": f"Бизнес: {business}, Локация: {location}. Данные: {web_data}"}
                     ],
                     temperature=0.4
                 )
-                push_text = completion.choices[0].message.content
-                bot.send_message(user_id, f"🛡️ <b>Ежедневный RuleGuard Радар</b>\n\n{push_text}", parse_mode="HTML")
-            
+                bot.send_message(user_id, f"🛡️ <b>Ежедневный RuleGuard Радар</b>\n\n{completion.choices[0].message.content}", parse_mode="HTML")
     except Exception as e:
-        print(f"Ошибка планировщика пушей: {e}")
+        print(f"Ошибка планировщика: {e}")
 
 def smart_ping_render():
-    current_hour = datetime.now().hour
-    if 7 <= current_hour < 22:
-        try:
-            print(f"⏰ [Пинг] Держим Render бодрствующим...")
-            response = requests.get(RENDER_APP_URL, timeout=10)
-            print(f"ℹ️ [Пинг] Ответ сервера: {response.status_code}")
-        except Exception as e:
-            print(f"⚠️ Ошибка автопина: {e}")
+    if 7 <= datetime.now().hour < 22:
+        try: requests.get(RENDER_APP_URL, timeout=10)
+        except: pass
 
 # =====================================================================
-# ОБРАБОТЧИКИ ТЕЛЕГРАМ БОТА
+# ИСПРАВЛЕННЫЕ ОБРАБОТЧИКИ ТЕЛЕГРАМ БОТА (ВОЗВРАЩАЕМ ЧАТ)
 # =====================================================================
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     save_user_data(message.from_user.id, username=message.from_user.first_name)
-    
     markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
     web_app_info = telebot.types.WebAppInfo("https://artemiiborovko.github.io/ruleguard-ui/")
+    markup.add(telebot.types.KeyboardButton(text="🚀 Открыть анкету RuleGuard", web_app=web_app_info))
+    markup.add(telebot.types.KeyboardButton(text="🔄 Повторить последний анализ"))
     
-    btn_open_app = telebot.types.KeyboardButton(text="🚀 Открыть анкету RuleGuard", web_app=web_app_info)
-    btn_re_analyze = telebot.types.KeyboardButton(text="🔄 Повторить последний анализ")
-    
-    markup.add(btn_open_app)
-    markup.add(btn_re_analyze)
-    
-    welcome_text = (
-        f"🛡️ **Привет, {message.from_user.first_name}! Бот RuleGuard запущен на базе PostgreSQL + Tavily.**\n\n"
-        "• Чтобы настроить профиль, нажми **Открыть анкету RuleGuard**.\n"
-        "• Чтобы обновить юридический отчет по профилю, нажми **Повторить последний анализ**.\n"
-        "• Либо просто напиши мне любой вопрос прямо сюда, в чат!"
-    )
-    bot.reply_to(message, welcome_text, reply_markup=markup, parse_mode='Markdown')
+    bot.reply_to(message, f"🛡️ **Привет, {message.from_user.first_name}!** Бот снова полностью активен как в WebApp, так и прямо здесь в чате.", reply_markup=markup, parse_mode='Markdown')
 
-@bot.message_handler(content_types=['text'])
+@bot.message_handler(func=lambda message: True, content_types=['text'])
 def handle_text(message):
     user_id = message.from_user.id
     if message.text == "🔄 Повторить последний анализ":
@@ -562,18 +475,17 @@ def handle_text(message):
             row = result.fetchone()
             
         if not row or not row[3]:
-            bot.reply_to(message, "📭 У вас еще нет сохраненного профиля бизнеса. Пожалуйста, откройте анкету и заполните её!")
+            bot.reply_to(message, "📭 Заполните сначала анкету в приложении!")
             return
             
-        compiled_input = f"{row[0]} {row[1]} {row[2]} {row[3]}"
-        bot.reply_to(message, "⏳ *Запрашиваю новые законы через Tavily API и перегенерирую отчет...*", parse_mode='Markdown')
-        
+        bot.reply_to(message, "⏳ *Обновляю отчет через Tavily API...*", parse_mode='Markdown')
         try:
-            report = generate_report_logic(user_id, compiled_input)
-            bot.send_message(user_id, f"🔄 **Свежий повторный анализ профиля:**\n\n{report}", parse_mode='Markdown')
+            report = generate_report_logic(user_id, f"{row[0]} {row[1]} {row[2]} {row[3]}")
+            bot.send_message(user_id, f"🔄 **Свежий отчет:**\n\n{report}", parse_mode='Markdown')
         except Exception as e:
-            bot.reply_to(message, f"⚠️ Ошибка генерации: {e}")
+            bot.reply_to(message, f"⚠️ Ошибка: {e}")
     else:
+        # ЭТОТ БЛОК ТЕПЕРЬ СВОБОДНО ОБРАБАТЫВАЕТ ЛЮБЫЕ ТЕКСТОВЫЕ МЕССЕДЖИ В ТГ ЧАТЕ
         run_legal_analysis(message, message.text)
 
 @bot.message_handler(content_types=['voice'])
@@ -583,39 +495,27 @@ def handle_voice(message):
         file_info = bot.get_file(message.voice.file_id)
         downloaded_file = bot.download_file(file_info.file_path)
         filename = f"voice_{message.voice.file_id}.ogg"
-        with open(filename, 'wb') as new_file:
-            new_file.write(downloaded_file)
+        with open(filename, 'wb') as new_file: new_file.write(downloaded_file)
             
         with open(filename, "rb") as audio_file:
             transcription = groq_client.audio.transcriptions.create(
-                file=(filename, audio_file.read()),
-                model="whisper-large-v3",
-                language="ru",
-                response_format="text"
+                file=(filename, audio_file.read()), model="whisper-large-v3", language="ru", response_format="text"
             )
         if os.path.exists(filename): os.remove(filename)
-            
         user_text = str(transcription).strip()
-        if not user_text:
-            bot.reply_to(message, "Не смог распознать звук.")
-            return
-            
-        bot.reply_to(message, f"🗣️ *Текст:* {user_text}", parse_mode='Markdown')
-        run_legal_analysis(message, user_text)
+        if user_text:
+            bot.reply_to(message, f"🗣️ *Текст:* {user_text}", parse_mode='Markdown')
+            run_legal_analysis(message, user_text)
     except Exception as e:
-        bot.reply_to(message, f"⚠️ Ошибка голосового ввода: {str(e)}")
+        bot.reply_to(message, f"⚠️ Ошибка: {str(e)}")
 
-# 6. ЗАПУСК ВСЕЙ СИСТЕМЫ 
+# 6. ЗАПУСК
 init_db()
-
 scheduler = BackgroundScheduler(daemon=True)
 scheduler.add_job(send_daily_push_notifications, 'interval', minutes=1)
 scheduler.add_job(smart_ping_render, 'interval', minutes=10)
 scheduler.start()
 
-print("🚀 Робот готов. Подключена база PostgreSQL + Tavily Search API.")
-
 @app.on_event("startup")
 def start_bot_polling():
-    print("🤖 Запуск Telegram бот пуллинга в безопасном режиме...")
     threading.Thread(target=bot.infinity_polling, kwargs={"skip_pending": True}, daemon=True).start()
