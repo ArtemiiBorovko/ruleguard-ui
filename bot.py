@@ -198,28 +198,32 @@ def check_if_search_needed(history, current_input):
 
 # 3. ПОИСК В ИНТЕРНЕТЕ С ЛОГИРОВАНИЕМ И ЗАЩИТОЙ
 def search_internet(query):
+    # Очищаем запрос от системного мусора для точного совпадения хэша
     clean_query = query.replace("Новый пользователь без настроенного профиля.", "")
-    clean_query = clean_query.replace("вопрос:", "").strip()
+    clean_query = clean_query.replace("вопрос:", "")
+    clean_query = clean_query.replace("юридические риски штрафы законы актуальное", "")
+    clean_query = clean_query.replace("изменения законы штрафы регуляция", "")
+    clean_query = clean_query.strip().lower()
     
     if len(clean_query) < 5:
         return "Недостаточно данных для поиска."
 
-    # Проверка параллельных дубликатов в базе данных
+    # Проверка кэша в БД (срок действия увеличен до 10 минут для защиты от дублей)
     try:
         with engine.connect() as conn:
             res = conn.execute(text('''
                 SELECT search_result FROM tavily_cache 
-                WHERE query_hash = :q AND created_at > CURRENT_TIMESTAMP - INTERVAL '15 seconds'
+                WHERE query_hash = :q AND created_at > CURRENT_TIMESTAMP - INTERVAL '10 minutes'
             '''), {"q": clean_query})
             row = res.fetchone()
             if row:
-                print(f"🛡️ [Блокировка БД] Перехвачен параллельный дубликат! Возвращаем кэш.")
+                print(f"🛡️ [Защита кэша] Успешный перехват! Возвращаем сохраненные данные Tavily.")
                 return row[0]
     except Exception as e:
         print(f"Ошибка кэша БД: {e}")
 
     try:
-        print(f"🔍 [Tavily] Выполняю одиночный веб-поиск: '{clean_query}'")
+        print(f"🔍 [Tavily] Запрос во внешнюю сеть (Списание 1 кредита): '{clean_query}'")
         payload = {
             "api_key": TAVILY_API_KEY,
             "query": clean_query,
@@ -234,7 +238,7 @@ def search_internet(query):
             if results:
                 context = "\n".join([f"Источник: {r['url']}\nТекст: {r['content']}" for r in results])
                 
-                # Запись свежего результата поиска в кэш БД
+                # Запись в кэш
                 try:
                     with engine.connect() as conn:
                         conn.execute(text('''
@@ -248,14 +252,14 @@ def search_internet(query):
                     
                 return context
     except Exception as e:
-        print(f"❌ [Tavily] Ошибка выполнения API-запроса: {e}")
+        print(f"❌ [Tavily] Ошибка API-запроса: {e}")
     return "Не удалось найти свежие нормативные данные в сети."
 
 # 4. ЯДРО АНАЛИЗА (Генерация отчетов из анкеты)
 def generate_report_logic(user_id, current_input_text):
-    user_memory = get_user_context(user_id)
-    search_query = f"юридические риски штрафы законы актуальное {current_input_text}"
-    web_data = search_internet(search_query)
+    # Вместо нагромождения текста передаем чистый контекст для поиска
+    # Убираем "юридические риски штрафы законы актуальное", так как search_internet сам все очистит
+    web_data = search_internet(current_input_text)
 
     system_instruction = (
         "Ты — профессиональный ИИ-юрист RuleGuard, защищающий бизнес от штрафов и проверок.\n"
@@ -270,6 +274,7 @@ def generate_report_logic(user_id, current_input_text):
         "Отвечай уверенно, на русском языке, без лишней «воды» и общих фраз."
     )
     
+    user_memory = get_user_context(user_id)
     full_prompt = (
         f"Контекст профиля: {user_memory}\n"
         f"АКТУАЛЬНЫЕ ДАННЫЕ СЕТИ ИЗ TAVILY API:\n{web_data}\n\n"
