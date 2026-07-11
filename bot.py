@@ -198,32 +198,37 @@ def check_if_search_needed(history, current_input):
 
 # 3. ПОИСК В ИНТЕРНЕТЕ С ЛОГИРОВАНИЕМ И ЗАЩИТОЙ
 def search_internet(query):
-    # Очищаем запрос от системного мусора для точного совпадения хэша
-    clean_query = query.replace("Новый пользователь без настроенного профиля.", "")
-    clean_query = clean_query.replace("вопрос:", "")
-    clean_query = clean_query.replace("юридические риски штрафы законы актуальное", "")
-    clean_query = clean_query.replace("изменения законы штрафы регуляция", "")
-    clean_query = clean_query.strip().lower()
+    # Тотальная очистка поискового запроса для приведения к единому хэшу
+    clean_query = query.lower()
+    for trash in ["новый пользователь без настроенного профиля.", "вопрос:", "юридические риски штрафы законы актуальное", 
+                  "изменения законы штрафы регуляция", "страна:", "локация:", "форма:", "детали:", "регион:", "опф:", "специфика бизнеса:"]:
+        clean_query = clean_query.replace(trash, "")
     
-    if len(clean_query) < 5:
-        return "Недостаточно данных для поиска."
+    # Убираем лишние знаки препинания, оставляем только ключевые слова
+    for char in [".", ",", ";", ":", "!", "?", "-", "_"]:
+        clean_query = clean_query.replace(char, " ")
+        
+    clean_query = " ".join(clean_query.split()).strip()
+    
+    if len(clean_query) < 4:
+        return "Недостаточно данных для интернет-поиска."
 
-    # Проверка кэша в БД (срок действия увеличен до 10 минут для защиты от дублей)
+    # Проверка кэша в БД (Защита от параллельных гонок на Render)
     try:
         with engine.connect() as conn:
             res = conn.execute(text('''
                 SELECT search_result FROM tavily_cache 
-                WHERE query_hash = :q AND created_at > CURRENT_TIMESTAMP - INTERVAL '10 minutes'
+                WHERE query_hash = :q AND created_at > CURRENT_TIMESTAMP - INTERVAL '30 minutes'
             '''), {"q": clean_query})
             row = res.fetchone()
             if row:
-                print(f"🛡️ [Защита кэша] Успешный перехват! Возвращаем сохраненные данные Tavily.")
+                print(f"🛡️ [КЭШ ОПТИМИЗАЦИЯ] Перехвачен дублирующий запрос! Кредиты Tavily сохранены для: '{clean_query}'")
                 return row[0]
     except Exception as e:
-        print(f"Ошибка кэша БД: {e}")
+        print(f"Ошибка проверки кэша БД: {e}")
 
     try:
-        print(f"🔍 [Tavily] Запрос во внешнюю сеть (Списание 1 кредита): '{clean_query}'")
+        print(f"🔍 [Tavily API] Реальное списание 1 кредита. Ищем: '{clean_query}'")
         payload = {
             "api_key": TAVILY_API_KEY,
             "query": clean_query,
@@ -238,7 +243,7 @@ def search_internet(query):
             if results:
                 context = "\n".join([f"Источник: {r['url']}\nТекст: {r['content']}" for r in results])
                 
-                # Запись в кэш
+                # Сохраняем в кэш
                 try:
                     with engine.connect() as conn:
                         conn.execute(text('''
@@ -248,17 +253,16 @@ def search_internet(query):
                         '''), {"q": clean_query, "res": context})
                         conn.commit()
                 except Exception as db_err:
-                    print(f"Ошибка сохранения кэша: {db_err}")
+                    print(f"Ошибка записи кэша: {db_err}")
                     
                 return context
     except Exception as e:
-        print(f"❌ [Tavily] Ошибка API-запроса: {e}")
+        print(f"❌ [Tavily] Ошибка API: {e}")
     return "Не удалось найти свежие нормативные данные в сети."
 
 # 4. ЯДРО АНАЛИЗА (Генерация отчетов из анкеты)
 def generate_report_logic(user_id, current_input_text):
-    # Вместо нагромождения текста передаем чистый контекст для поиска
-    # Убираем "юридические риски штрафы законы актуальное", так как search_internet сам все очистит
+    # Вызываем стандартизированный поиск через кэш
     web_data = search_internet(current_input_text)
 
     system_instruction = (
@@ -358,7 +362,6 @@ def run_legal_analysis(message, current_input_text):
 def read_root():
     return {"status": "online", "project": "RuleGuard AI PostgreSQL + Tavily Search"}
 
-# НОВЫЙ ЭНДПОИНТ: Получение сообщений встроенного чата для WebApp
 @app.get("/api/chat/history/{user_id}")
 async def get_webapp_chat_history(user_id: int):
     try:
@@ -368,7 +371,6 @@ async def get_webapp_chat_history(user_id: int):
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-# НОВЫЙ ЭНДПОИНТ: Обработка сообщения, отправленного ИЗ внутри встроенного чата WebApp
 @app.post("/api/chat/message")
 async def handle_webapp_chat_message(request: Request):
     try:
@@ -402,7 +404,7 @@ async def handle_web_analysis(request: Request):
         if not details and not location:
             return {"status": "success", "message": "Settings updated"}
 
-        compiled_input = f"Страна: {country or 'Не указано'}, Локация: {location or 'Не указано'}. Форма: {legal_form or 'Не указано'}. Детали: {details or 'Не указано'}"
+        compiled_input = f"{country or ''} {location or ''} {legal_form or ''} {details or ''}"
         report = generate_report_logic(user_id, compiled_input)
         
         flag = "🇺🇸" if country == "USA" else "🇷🇺" if country == "Russia" else "🌐"
@@ -463,7 +465,7 @@ async def handle_fast_reanalyze(user_id: int):
         if not row or not row[3]:
             return {"status": "error", "message": "Профиль бизнеса не найден. Сначала заполните анкету!"}
             
-        compiled_input = f"Страна: {row[0]}, Локация: {row[1]}. Form: {row[2]}. Details: {row[3]}"
+        compiled_input = f"{row[0]} {row[1]} {row[2]} {row[3]}"
         report = generate_report_logic(user_id, compiled_input)
         
         flag = "🇺🇸" if row[0] == "USA" else "🇷🇺" if row[0] == "Russia" else "🌐"
@@ -475,16 +477,16 @@ async def handle_fast_reanalyze(user_id: int):
         return {"status": "error", "message": str(e)}
 
 # =====================================================================
-# ПЛАНИРОВЩИК ПУШЕЙ И АНТИ-СОН (ПОЛНОСТЬЮ СОХРАНЕНЫ)
+# ПЛАНИРОВЩИК ПУШЕЙ И АНТИ-СОН
 # =====================================================================
 def send_daily_push_notifications():
     try:
         with engine.connect() as conn:
-            result = conn.execute(text("SELECT user_id, user_name, business_description, location, push_time, timezone FROM users"))
+            result = conn.execute(text("SELECT user_id, user_name, business_description, location, push_time, timezone, country, legal_form FROM users"))
             all_users = result.fetchall()
         
         for user in all_users:
-            user_id, username, business, location, push_time, user_tz = user
+            user_id, username, business, location, push_time, user_tz, country, legal_form = user
             if not location or not business: continue
             if not user_tz: user_tz = 'UTC'
                 
@@ -492,7 +494,8 @@ def send_daily_push_notifications():
             user_current_time = datetime.now(tz).strftime("%H:%M")
             
             if user_current_time == push_time:
-                search_query = f"изменения законы штрафы регуляция {location} {business}"
+                # В фоновом потоке строим ТОЧНО ТАКУЮ ЖЕ строку, как и в веб-эндпоинте
+                search_query = f"{country or ''} {location or ''} {legal_form or ''} {business or ''}"
                 web_data = search_internet(search_query)
                 
                 system_instruction = (
@@ -526,7 +529,7 @@ def smart_ping_render():
             print(f"⚠️ Ошибка автопина: {e}")
 
 # =====================================================================
-# ОБРАБОТЧИКИ ТЕЛЕГРАМ БОТА (WHISPER И КОМАНДЫ СОХРАНЕНЫ НА 100%)
+# ОБРАБОТЧИКИ ТЕЛЕГРАМ БОТА
 # =====================================================================
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
@@ -562,7 +565,7 @@ def handle_text(message):
             bot.reply_to(message, "📭 У вас еще нет сохраненного профиля бизнеса. Пожалуйста, откройте анкету и заполните её!")
             return
             
-        compiled_input = f"Страна: {row[0]}, Локация: {row[1]}. Форма: {row[2]}. Детали: {row[3]}"
+        compiled_input = f"{row[0]} {row[1]} {row[2]} {row[3]}"
         bot.reply_to(message, "⏳ *Запрашиваю новые законы через Tavily API и перегенерирую отчет...*", parse_mode='Markdown')
         
         try:
