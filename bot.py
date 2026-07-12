@@ -606,3 +606,4 @@ scheduler.start()
 @app.on_event("startup")
 def start_bot_polling():
     threading.Thread(target=bot.infinity_polling, kwargs={"skip_pending": True}, daemon=True).start()
+    
