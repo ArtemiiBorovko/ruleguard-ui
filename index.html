@@ -488,9 +488,7 @@
             });
         }
 
-        // =====================================================================
-        // ИСПРАВЛЕНО: ПЕРЕДАЕМ USER_ID В URL, ЧТОБЫ PYTHON-БЭКЕНД НЕ ТЕРЯЛ СЕССИЮ
-        // =====================================================================
+        // Обработка загрузки документов
         function handleFileSelected() {
             const fileInput = document.getElementById('chat-file-input');
             if (fileInput.files.length === 0) return;
@@ -503,10 +501,10 @@
             box.scrollTop = box.scrollHeight;
 
             const formData = new FormData();
-            formData.append('file', file); // Передаем ТОЛЬКО файл внутри FormData
+            formData.append('user_id', userTelegramId);
+            formData.append('file', file);
 
-            // user_id вешаем параметром запроса, как требует бэкенд
-            fetch(`${BACKEND_URL}/api/chat/upload-doc?user_id=${userTelegramId}`, {
+            fetch(`${BACKEND_URL}/api/chat/upload-doc`, {
                 method: 'POST',
                 body: formData
             })
@@ -531,6 +529,7 @@
             });
         }
 
+        // Обработка записи аудио сообщений
         function toggleVoiceRecording() {
             const micBtn = document.getElementById('mic-btn');
             
@@ -553,9 +552,6 @@
                 mediaRecorder.onstop = () => {
                     const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
                     sendVoiceBlobToServer(audioBlob);
-                    
-                    // Чистим за собой стрим микрофона
-                    stream.getTracks().forEach(track => track.stop());
                 };
 
                 mediaRecorder.start();
@@ -575,10 +571,10 @@
             box.scrollTop = box.scrollHeight;
 
             const formData = new FormData();
-            formData.append('file', blob, 'voice.wav'); // Передаем бинарник аудио
+            formData.append('user_id', userTelegramId);
+            formData.append('file', blob, 'voice.wav');
 
-            // Корректный URL с параметром ID пользователя
-            fetch(`${BACKEND_URL}/api/chat/upload-voice?user_id=${userTelegramId}`, {
+            fetch(`${BACKEND_URL}/api/chat/upload-voice`, {
                 method: 'POST',
                 body: formData
             })
