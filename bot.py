@@ -7,6 +7,8 @@ import pytz
 from groq import Groq
 from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
+import pypdf
+import docx2txt
 
 # Работа с PostgreSQL
 from sqlalchemy import create_engine, text
@@ -508,6 +510,89 @@ def handle_voice(message):
             run_legal_analysis(message, user_text)
     except Exception as e:
         bot.reply_to(message, f"⚠️ Ошибка: {str(e)}")
+
+# =====================================================================
+# ОБРАБОТКА И АНАЛИЗ ДОКУМЕНТОВ (PDF, DOCX)
+# =====================================================================
+@bot.message_handler(content_types=['document'])
+def handle_document(message):
+    try:
+        file_info = bot.get_file(message.document.file_id)
+        file_name = message.document.file_name.lower()
+        
+        # Проверяем формат документа
+        if not (file_name.endswith('.pdf') or file_name.endswith('.docx')):
+            bot.reply_to(message, "❌ Я принимаю только файлы в формате **PDF** или **DOCX** (Word).")
+            return
+            
+        bot.send_chat_action(message.chat.id, 'typing')
+        bot.reply_to(message, "📥 *Скачиваю и изучаю документ...* Это может занять около 10-15 секунд.", parse_mode='Markdown')
+        
+        # Скачиваем файл во временное хранилище
+        downloaded_file = bot.download_file(file_info.file_path)
+        local_filename = f"doc_{message.document.file_id}_{file_name}"
+        
+        with open(local_filename, 'wb') as new_file:
+            new_file.write(downloaded_file)
+            
+        text_content = ""
+        
+        # Извлекаем текст в зависимости от формата
+        if file_name.endswith('.pdf'):
+            with open(local_filename, 'rb') as f:
+                reader = pypdf.PdfReader(f)
+                for page in reader.pages:
+                    page_text = page.extract_text()
+                    if page_text:
+                        text_content += page_text + "\n"
+        elif file_name.endswith('.docx'):
+            text_content = docx2txt.process(local_filename)
+            
+        # Удаляем локальный файл после чтения
+        if os.path.exists(local_filename):
+            os.remove(local_filename)
+            
+        text_content = text_content.strip()
+        
+        if len(text_content) < 50:
+            bot.reply_to(message, "⚠️ Не удалось извлечь текст из документа. Возможно, это сканированная картинка (скан), а не текстовый файл.")
+            return
+            
+        # Обрезаем текст, если договор гигантский, чтобы не перегрузить лимиты Groq (примерно до 30 000 символов)
+        if len(text_content) > 30000:
+            text_content = text_content[:30000] + "\n\n...[Текст обрезан из-за ограничений размера]..."
+
+        # Отправляем текст на аудит в Groq
+        bot.send_chat_action(message.chat.id, 'typing')
+        
+        system_instruction = (
+            "Ты — опытный ИИ-юрист корпоративного уровня RuleGuard. Твоя задача — провести экспресс-аудит загруженного договора.\n"
+            "Найди скрытые юридические ловушки, финансовые риски, жесткие штрафы и кабальные условия для стороны, которая подписывает этот документ.\n\n"
+            "Сформируй ответ строго по этой структуре:\n"
+            "### 🔎 Общий вердикт по документу\n"
+            "(Кратко опиши, что это за договор и насколько опасно его подписывать в текущем виде)\n\n"
+            "### ⚠️ Кабальные условия и скрытые риски\n"
+            "(Прямо по пунктам распиши: скрытые штрафы, автоматические пролонгации, невыгодные условия расторжения, асимметрия ответственности)\n\n"
+            "### 🛠️ Что потребовать изменить / Протокол разногласий\n"
+            "(Дай конкретные формулировки или рекомендации, какие пункты нужно переписать или исключить, чтобы обезопасить бизнес)\n\n"
+            "Отвечай профессионально, структурированно, на русском языке и строго по делу."
+        )
+        
+        user_context = get_user_context(message.from_user.id)
+        
+        completion = groq_client.chat.completions.create(
+            model="llama-3.3-70b-versatile", 
+            messages=[
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": f"Контекст компании клиента: {user_context}\n\nТЕКСТ ДОГОВОРА ДЛЯ АНАЛИЗА:\n{text_content}"}
+            ],
+            temperature=0.2
+        )
+        
+        bot.send_message(message.chat.id, f"📋 **Результаты экспресс-аудита документа:**\n\n{completion.choices[0].message.content}", parse_mode='Markdown')
+        
+    except Exception as e:
+        bot.reply_to(message, f"⚠️ Ошибка при анализе документа: {str(e)}")
 
 # 6. ЗАПУСК
 init_db()
