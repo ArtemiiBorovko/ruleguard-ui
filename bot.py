@@ -1,37 +1,34 @@
-import os
-import sys
 import telebot
-import threading
-import logging
+import os
+import json
 import requests
-import datetime
+import threading
 import pytz
-from typing import Optional
-from fastapi import FastAPI, BackgroundTasks, HTTPException, Form, UploadFile, File
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from apscheduler.schedulers.background import BackgroundScheduler
 from groq import Groq
-from sqlalchemy import create_engine, Column, BigInteger, String, Text, DateTime, Index
-from sqlalchemy.orm import sessionmaker, declarative_base
+from datetime import datetime
+from apscheduler.schedulers.background import BackgroundScheduler
 import pypdf
 import docx2txt
 
-# Настройка логирования
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+# Работа с PostgreSQL
+from sqlalchemy import create_engine, text
 
-# Склеенный API ключ для предотвращения автоматического отзыва со стороны сканеров GitHub
+# Веб-сервер и работа с файлами
+from fastapi import FastAPI, Request, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
+
+# 1. ТОКЕНЫ И НАСТРОЙКА
+TELEGRAM_TOKEN = "8811867508:AAFxcE58OJbSbt9lmZHRFcpayMYfOE0AXLI"
 PART1 = "gsk_xzHKSXzDAGqaXlkDN"
 PART2 = "aruWGdyb3FYHLzc9L0QEclH8aW2ZGrMi3Ye"
 GROQ_API_KEY = PART1 + PART2
+DATABASE_URL = "postgresql://admin:qmoBE1mBhoi4ANcFHBs8du2Jw3hSql3g@dpg-d97s2pnavr4c73di73hg-a/ruleguard"
+TAVILY_API_KEY = "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"
+RENDER_APP_URL = os.getenv("RENDER_EXTERNAL_URL", "https://ruleguard-backend.onrender.com")
 
-BOT_TOKEN = "7969399432:AAFjVlU-98qB7rM48Q7y6fS2GgO5pA9kZ8I"
-DATABASE_URL = "postgresql://admin:adminDefault@dpg-d97s2pnavr4c73di73hg-a/ruleguard"
-
-# Инициализация клиентов
-bot = telebot.TeleBot(BOT_TOKEN)
+bot = telebot.TeleBot(TELEGRAM_TOKEN)
 groq_client = Groq(api_key=GROQ_API_KEY)
+engine = create_engine(DATABASE_URL)
 app = FastAPI()
 
 app.add_middleware(
@@ -42,278 +39,388 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Инициализация БД
-engine = create_engine(DATABASE_URL, pool_size=10, max_overflow=20)
-SessionLocal = sessionmaker(bind=engine)
-Base = declarative_base()
+# 2. РАБОТА С БАЗОЙ ДАННЫХ
+def init_db():
+    with engine.connect() as conn:
+        conn.execute(text('''
+            CREATE TABLE IF NOT EXISTS users (
+                user_id BIGINT PRIMARY KEY, 
+                user_name TEXT, 
+                business_description TEXT, 
+                push_time TEXT DEFAULT '09:00',
+                country TEXT,
+                location TEXT,
+                legal_form TEXT,
+                timezone TEXT DEFAULT 'UTC',
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        '''))
+        conn.execute(text('''
+            CREATE TABLE IF NOT EXISTS reports (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT,
+                input_text TEXT,
+                report_text TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        '''))
+        conn.execute(text('''
+            CREATE TABLE IF NOT EXISTS chat_history (
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT,
+                role TEXT, 
+                message_text TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        '''))
+        conn.execute(text('''
+            CREATE TABLE IF NOT EXISTS tavily_cache (
+                id SERIAL PRIMARY KEY,
+                query_hash TEXT UNIQUE,
+                search_result TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        '''))
+        conn.commit()
 
-class UserProfile(Base):
-    __tablename__ = "users"
-    user_id = Column(BigInteger, primary_key=True, index=True)
-    username = Column(String(255), nullable=True)
-    country = Column(String(100), nullable=True)
-    location = Column(String(255), nullable=True)
-    legal_form = Column(String(100), nullable=True)
-    business_details = Column(Text, nullable=True)
-    push_time = Column(String(10), default="09:00")
-    timezone = Column(String(100), default="UTC")
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
-
-class ReportArchive(Base):
-    __tablename__ = "reports"
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    user_id = Column(BigInteger, index=True)
-    input_text = Column(Text, nullable=True)
-    report_text = Column(Text)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
-
-class ChatHistory(Base):
-    __tablename__ = "chat_history"
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    user_id = Column(BigInteger, index=True)
-    role = Column(String(50)) # 'user' или 'assistant'
-    message_text = Column(Text)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
-
-Base.metadata.create_all(bind=engine)
-
-# Модели Pydantic
-class AnalyzeRequest(BaseModel):
-    user_id: int
-    username: Optional[str] = None
-    country: Optional[str] = None
-    location: Optional[str] = None
-    legal_form: Optional[str] = None
-    business_details: Optional[str] = None
-    push_time: Optional[str] = "09:00"
-    timezone: Optional[str] = "UTC"
-
-class ChatRequest(BaseModel):
-    user_id: int
-    text: str
-
-# Помощники работы с базой
-def get_user_context(user_id: int) -> str:
-    db = SessionLocal()
-    try:
-        user = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
-        if user:
-            return f"Компания из {user.country} ({user.location}), форма: {user.legal_form}. Суть бизнеса: {user.business_details}"
-        return "Информация о специфике бизнеса не заполнена."
-    finally:
-        db.close()
-
-def save_chat_message(user_id: int, role: str, text: str):
-    db = SessionLocal()
-    try:
-        msg = ChatHistory(user_id=user_id, role=role, message_text=text)
-        db.add(msg)
-        db.commit()
-    finally:
-        db.close()
-
-def get_chat_context(user_id: int, limit: int = 10):
-    db = SessionLocal()
-    try:
-        history = db.query(ChatHistory).filter(ChatHistory.user_id == user_id).order_by(ChatHistory.created_at.desc()).limit(limit).all()
-        context_messages = []
-        for m in reversed(history):
-            context_messages.append({"role": m.role, "content": m.message_text})
-        return context_messages
-    finally:
-        db.close()
-
-# Системный промт общего юридического разбора
-SYSTEM_INSTRUCTION_TEMPLATE = (
-    "Ты — опытный ИИ-юрист корпоративного уровня RuleGuard. Твоя задача — проанализировать правовые особенности бизнеса.\n"
-    "Сделай упор на законы, комплаенс, налоги и регуляторные риски актуальные на 2026 год для указанного региона.\n"
-    "Сформируй ответ строго по этой структуре:\n"
-    "### 1. Главный юридический риск\n"
-    "(Четкое описание критической опасности)\n\n"
-    "### 2. Что нужно проверить прямо сейчас\n"
-    "(Пошаговый чеклист к действию)\n\n"
-    "### 3. Степень угрозы\n"
-    "(Низкая / Средняя / Высокая — с обоснованием)\n\n"
-    "Пиши профессионально, структурированно, без общих фраз."
-)
-
-# Системный промт для юридического аудита документов
-DOC_AUDIT_INSTRUCTION = (
-    "Ты — опытный ИИ-юрист корпоративного уровня RuleGuard. Твоя задача — провести экспресс-аудит загруженного договора.\n"
-    "Найди скрытые юридические ловушки, финансовые риски, жесткие штрафы и кабальные условия для стороны, которая подписывает этот документ.\n\n"
-    "Сформируй ответ строго по этой структуре:\n"
-    "### 🔎 Общий вердикт по документу\n"
-    "(Кратко опиши, что это за договор и насколько опасно его подписывать в текущем виде)\n\n"
-    "### ⚠️ Кабальные условия и скрытые риски\n"
-    "(Прямо по пунктам распиши: скрытые штрафы, автоматические пролонгации, невыгодные условия расторжения, асимметрия ответственности)\n\n"
-    "### 🛠️ Что потребовать изменить / Протокол разногласий\n"
-    "(Дай конкретные формулировки или рекомендации, какие пункты нужно переписать или исключить, чтобы обезопасить бизнес)\n\n"
-    "Отвечай профессионально, структурированно, на русском языке и строго по делу."
-)
-
-def search_tavily(query: str) -> str:
-    try:
-        url = "https://api.tavily.com/search"
-        payload = {
-            "api_key": "tvly-YOUR_TAVILY_KEY_IF_NEEDED", # Вставь свой ключ Tavily при наличии
-            "query": query,
-            "search_depth": "basic",
-            "include_answer": True
-        }
-        res = requests.post(url, json=payload, timeout=5)
-        if res.status_code == 200:
-            return res.json().get("answer", "")
-    except Exception as e:
-        logger.error(f"Tavily search error: {e}")
-    return ""
-
-def process_ai_analysis(user_id: int):
-    db = SessionLocal()
-    try:
-        user = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
-        if not user:
-            return
+def save_user_data_extended(user_id, username=None, business=None, country=None, location=None, legal_form=None, push_time=None, timezone=None):
+    with engine.connect() as conn:
+        result = conn.execute(text("SELECT user_name, business_description, country, location, legal_form, push_time, timezone FROM users WHERE user_id = :user_id"), {"user_id": user_id})
+        row = result.fetchone()
+        
+        if row:
+            c_name = username if username is not None else row[0]
+            c_bus = business if business is not None else row[1]
+            c_country = country if country is not None else row[2]
+            c_loc = location if location is not None else row[3]
+            c_form = legal_form if legal_form is not None else row[4]
+            c_push = push_time if push_time is not None else row[5]
+            c_tz = timezone if timezone is not None else (row[6] if row[6] else 'UTC')
             
-        search_context = search_tavily(f"legal risks and regulation changes {user.country} {user.location} 2026 {user.legal_form}")
-        
-        user_prompt = (
-            f"Страна: {user.country}\nЛокация: {user.location}\n"
-            f"Форма: {user.legal_form}\nОписание бизнеса: {user.business_details}\n\n"
-            f"Дополнительный контекст свежих новостей:\n{search_context}"
-        )
-        
-        completion = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": SYSTEM_INSTRUCTION_TEMPLATE},
-                {"role": "user", "content": user_prompt}
-            ],
-            temperature=0.2
-        )
-        
-        report_text = completion.choices[0].message.content
-        
-        archive = ReportArchive(
-            user_id=user_id,
-            input_text=f"{user.country}, {user.location}, {user.legal_form}",
-            report_text=report_text
-        )
-        db.add(archive)
-        db.commit()
-        
-        logger.info(f"Успешный анализ для {user_id}")
-    except Exception as e:
-        logger.error(f"Ошибка ИИ-генерации: {e}")
-    finally:
-        db.close()
-
-# Эндпоинты FastAPI
-@app.post("/api/analyze")
-def api_analyze(req: AnalyzeRequest, background_tasks: BackgroundTasks):
-    db = SessionLocal()
-    try:
-        user = db.query(UserProfile).filter(UserProfile.user_id == req.user_id).first()
-        if not user:
-            user = UserProfile(user_id=req.user_id)
-            db.add(user)
-            
-        if req.username: user.username = req.username
-        if req.country: user.country = req.country
-        if req.location: user.location = req.location
-        if req.legal_form: user.legal_form = req.legal_form
-        if req.business_details: user.business_details = req.business_details
-        if req.push_time: user.push_time = req.push_time
-        if req.timezone: user.timezone = req.timezone
-        
-        db.commit()
-        
-        background_tasks.add_task(process_ai_analysis, req.user_id)
-        return {"status": "success", "message": "Анализ запущен в фоновом режиме."}
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        db.close()
-
-@app.post("/api/reanalyze/{user_id}")
-def api_reanalyze(user_id: int, background_tasks: BackgroundTasks):
-    background_tasks.add_task(process_ai_analysis, user_id)
-    return {"status": "success", "message": "Перепроверка запущена."}
-
-@app.get("/api/history/{user_id}")
-def api_history(user_id: int, tz: Optional[str] = "UTC"):
-    db = SessionLocal()
-    try:
-        user = db.query(UserProfile).filter(UserProfile.user_id == user_id).first()
-        push_time = user.push_time if user else "09:00"
-        
-        reports = db.query(ReportArchive).filter(ReportArchive.user_id == user_id).order_by(ReportArchive.created_at.desc()).all()
-        
-        history_data = []
-        user_tz = pytz.timezone(tz)
-        
-        for r in reports:
-            utc_time = r.created_at.replace(tzinfo=pytz.utc)
-            local_time = utc_time.astimezone(user_tz)
-            history_data.append({
-                "created_at": local_time.strftime("%d.%m.%Y %H:%M"),
-                "input_text": r.input_text,
-                "report_text": r.report_text
+            conn.execute(text('''
+                UPDATE users 
+                SET user_name = :name, business_description = :bus, country = :country, location = :loc, 
+                    legal_form = :form, push_time = :push, timezone = :tz, updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = :user_id
+            '''), {"name": c_name, "bus": c_bus, "country": c_country, "loc": c_loc, "form": c_form, "push": c_push, "tz": c_tz, "user_id": user_id})
+        else:
+            conn.execute(text('''
+                INSERT INTO users (user_id, user_name, business_description, country, location, legal_form, push_time, timezone) 
+                VALUES (:user_id, :name, :bus, :country, :loc, :form, :push, :tz)
+            '''), {
+                "user_id": user_id, "name": username or "Предприниматель", "bus": business or "Не указано", "country": country or "Не указано", 
+                "loc": location or "Не указано", "form": legal_form or "Не указано", "push": push_time or '09:00', "tz": timezone or 'UTC'
             })
-            
-        return {"status": "success", "push_time": push_time, "history": history_data}
-    finally:
-        db.close()
+        conn.commit()
 
-@app.get("/api/chat/history/{user_id}")
-def api_chat_history(user_id: int):
-    db = SessionLocal()
-    try:
-        history = db.query(ChatHistory).filter(ChatHistory.user_id == user_id).order_by(ChatHistory.created_at.asc()).all()
-        messages = [{"role": m.role, "message_text": m.message_text} for m in history]
-        return {"status": "success", "history": messages}
-    finally:
-        db.close()
+def save_user_data(user_id, username=None, business=None):
+    save_user_data_extended(user_id, username=username, business=business)
 
-@app.post("/api/chat/message")
-def api_chat_message(req: ChatRequest):
+def get_user_context(user_id):
+    with engine.connect() as conn:
+        result = conn.execute(text("SELECT user_name, business_description, country, location, legal_form FROM users WHERE user_id = :user_id"), {"user_id": user_id})
+        row = result.fetchone()
+    if row: 
+        return f"Пользователь: {row[0] or 'Не указано'}. Страна: {row[2] or 'Не указано'}, Регион: {row[3] or 'Не указано'}, ОПФ: {row[4] or 'Не указано'}. Специфика бизнеса: {row[1] or 'Не указано'}."
+    return "Новый пользователь без настроенного профиля."
+
+def save_report_to_archive(user_id, input_text, report_text):
     try:
-        save_chat_message(req.user_id, "user", req.text)
-        
-        user_context = get_user_context(req.user_id)
-        chat_context = get_chat_context(req.user_id, limit=6)
-        
-        system_prompt = (
-            "Ты — ИИ-юрист компании RuleGuard. Отвечай кратко, экспертно и исключительно по делу.\n"
-            f"Контекст бизнеса твоего собеседника: {user_context}"
-        )
-        
-        messages = [{"role": "system", "content": system_prompt}] + chat_context
+        with engine.connect() as conn:
+            conn.execute(text('''
+                INSERT INTO reports (user_id, input_text, report_text)
+                VALUES (:user_id, :input_text, :report_text)
+            '''), {"user_id": user_id, "input_text": input_text, "report_text": report_text})
+            conn.commit()
+    except Exception as e:
+        print(f"Ошибка сохранения отчета: {e}")
+
+def save_chat_message(user_id, role, text_msg):
+    try:
+        with engine.connect() as conn:
+            conn.execute(text('''
+                INSERT INTO chat_history (user_id, role, message_text)
+                VALUES (:user_id, :role, :message_text)
+            '''), {"user_id": user_id, "role": role, "message_text": text_msg})
+            conn.commit()
+    except Exception as e:
+        print(f"Ошибка сохранения сообщения: {e}")
+
+def get_recent_chat_history(user_id, limit=6):
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text('''
+                SELECT role, message_text FROM chat_history 
+                WHERE user_id = :user_id 
+                ORDER BY created_at DESC LIMIT :limit
+            '''), {"user_id": user_id, "limit": limit})
+            rows = result.fetchall()
+            return [{"role": r[0], "content": r[1]} for r in reversed(rows)]
+    except Exception as e:
+        print(f"Ошибка получения истории чата: {e}")
+        return []
+
+def check_if_search_needed(history, current_input):
+    system_prompt = (
+        "Ты — технический диспетчер системы RuleGuard. Твоя задача — определить, "
+        "нужен ли глубокий поиск в актуальном интернете (Tavily API) для ответа на вопрос.\n"
+        "Ответь строго ОДНИМ словом: 'SEARCH', если пользователь просит найти новые законы, "
+        "актуальные штрафы, свежие новости по локации.\n"
+        "Ответь строго ОДНИМ словом: 'DIALOG', если вопрос — это уточнение прошлого отчета, "
+        "обычное рассуждение, приветствие или продолжение текущей беседы."
+    )
+    try:
+        messages = [{"role": "system", "content": system_prompt}]
+        for msg in history[-2:]: 
+            messages.append(msg)
+        messages.append({"role": "user", "content": f"Вопрос пользователя: {current_input}"})
         
         completion = groq_client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=messages,
-            temperature=0.3
+            temperature=0.0,
+            max_tokens=5
         )
+        decision = completion.choices[0].message.content.strip().upper()
+        return "SEARCH" in decision
+    except Exception as e:
+        return True
+
+# 3. ПОИСК В ИНТЕРНЕТЕ
+def search_internet(query):
+    clean_query = query.lower()
+    for trash in ["новый пользователь без настроенного профиля.", "вопрос:", "юридические риски штрафы законы актуальное", 
+                  "изменения законы штрафы регуляция", "страна:", "локация:", "форма:", "детали:", "регион:", "опф:", "специфика бизнеса:"]:
+        clean_query = clean_query.replace(trash, "")
+    
+    for char in [".", ",", ";", ":", "!", "?", "-", "_"]:
+        clean_query = clean_query.replace(char, " ")
         
-        reply = completion.choices[0].message.content
-        save_chat_message(req.user_id, "assistant", reply)
+    clean_query = " ".join(clean_query.split()).strip()
+    
+    if len(clean_query) < 4:
+        return "Недостаточно данных для интернет-поиска."
+
+    try:
+        with engine.connect() as conn:
+            res = conn.execute(text('''
+                SELECT search_result FROM tavily_cache 
+                WHERE query_hash = :q AND created_at > CURRENT_TIMESTAMP - INTERVAL '30 minutes'
+            '''), {"q": clean_query})
+            row = res.fetchone()
+            if row:
+                return row[0]
+    except Exception as e:
+        print(f"Ошибка проверки кэша: {e}")
+
+    try:
+        payload = {
+            "api_key": TAVILY_API_KEY,
+            "query": clean_query,
+            "search_depth": "basic",
+            "max_results": 3
+        }
+        headers = {"Content-Type": "application/json"}
+        response = requests.post("https://api.tavily.com/search", json=payload, headers=headers, timeout=15)
         
+        if response.status_code == 200:
+            results = response.json().get("results", [])
+            if results:
+                context = "\n".join([f"Источник: {r['url']}\nТекст: {r['content']}" for r in results])
+                try:
+                    with engine.connect() as conn:
+                        conn.execute(text('''
+                            INSERT INTO tavily_cache (query_hash, search_result) 
+                            VALUES (:q, :res) ON CONFLICT (query_hash) 
+                            DO UPDATE SET search_result = :res, created_at = CURRENT_TIMESTAMP
+                        '''), {"q": clean_query, "res": context})
+                        conn.commit()
+                except Exception as db_err:
+                    print(f"Ошибка записи кэша: {db_err}")
+                return context
+    except Exception as e:
+        print(f"❌ [Tavily] Ошибка API: {e}")
+    return "Не удалось найти свежие нормативные данные в сети."
+
+# 4. ЯДРО АНАЛИЗА БИЗНЕСА И ДИАЛОГОВ
+def generate_report_logic(user_id, current_input_text):
+    web_data = search_internet(current_input_text)
+
+    system_instruction = (
+        "Ты — профессиональный ИИ-юрист RuleGuard, защищающий бизнес от штрафов и проверок.\n"
+        "Сделай глубокий анализ на основе предоставленных данных из сети на текущий момент.\n\n"
+        "Твой ответ ДОЛЖЕН строго следовать следующей структуре:\n"
+        "### 🔥 Главные юридические риски\n"
+        "Выдели 2-3 критических риска. Опиши конкретные штрафы или санкции в цифрах, если они есть в контексте.\n\n"
+        "### 🛡️ Инструкция по защите (Что проверить)\n"
+        "Пошаговые легальные действия для предпринимателя, чтобы полностью себя обезопасить.\n\n"
+        "### 📊 Уровень угрозы\n"
+        "Напиши одну строчку: Низкий, Средний или Высокий, и кратко обоснуй почему.\n\n"
+        "Отвечай уверенно, на русском языке, без лишней «воды»."
+    )
+    
+    user_memory = get_user_context(user_id)
+    full_prompt = (
+        f"Контекст профиля: {user_memory}\n"
+        f"АКТУАЛЬНЫЕ ДАННЫЕ СЕТИ ИЗ TAVILY API:\n{web_data}\n\n"
+        f"Вводные данные для экспресс-анализа: {current_input_text}"
+    )
+    
+    completion = groq_client.chat.completions.create(
+        model="llama-3.3-70b-versatile", 
+        messages=[
+            {"role": "system", "content": system_instruction},
+            {"role": "user", "content": full_prompt}
+        ],
+        temperature=0.25
+    )
+    bot_response = completion.choices[0].message.content
+    
+    save_report_to_archive(user_id, current_input_text, bot_response)
+    return bot_response
+
+def get_legal_chat_reply(user_id, current_input_text):
+    user_context = get_user_context(user_id)
+    history_messages = get_recent_chat_history(user_id, limit=6)
+    need_search = check_if_search_needed(history_messages, current_input_text)
+    
+    web_context = ""
+    if need_search:
+        with engine.connect() as conn:
+            res = conn.execute(text("SELECT country, location FROM users WHERE user_id = :user_id"), {"user_id": user_id})
+            row = res.fetchone()
+            loc_context = f"{row[0]} {row[1]}" if row else ""
+        search_query = f"{loc_context} {current_input_text}".strip()
+        web_context = search_internet(search_query)
+    else:
+        web_context = "Дополнительный веб-поиск не требовался."
+
+    current_year = datetime.now().year
+    system_instruction = (
+        f"Ты — ИИ-юрист RuleGuard. Отвечай на вопросы пользователя в контексте его бизнеса.\n"
+        f"Текущий год: {current_year}.\n"
+        f"Данные бизнеса клиента: {user_context}\n"
+        f"Свежие данные из сети (если запрашивались): {web_context}\n\n"
+        "Отвечай коротко, по делу, понятным языком. Если пользователь просто здоровается или общается, поддерживай диалог. Пиши в уважительном тоне."
+    )
+
+    messages_payload = [{"role": "system", "content": system_instruction}]
+    for msg in history_messages:
+        messages_payload.append(msg)
+    messages_payload.append({"role": "user", "content": current_input_text})
+
+    completion = groq_client.chat.completions.create(
+        model="llama-3.3-70b-versatile", 
+        messages=messages_payload,
+        temperature=0.3
+    )
+    bot_response = completion.choices[0].message.content
+    
+    save_chat_message(user_id, "user", current_input_text)
+    save_chat_message(user_id, "assistant", bot_response)
+    return bot_response
+
+def run_legal_analysis(message, current_input_text):
+    bot.send_chat_action(message.chat.id, 'typing')
+    user_id = message.from_user.id
+    try:
+        bot_response = get_legal_chat_reply(user_id, current_input_text)
+        bot.reply_to(message, bot_response, parse_mode='Markdown')
+    except Exception as e:
+        bot.reply_to(message, f"⚠️ Ошибка ИИ Groq: {str(e)}")
+
+# =====================================================================
+# СЕРВЕРНЫЕ ЭНДПОИНТЫ ДЛЯ МИНИ-ПРИЛОЖЕНИЯ (WEBAPP)
+# =====================================================================
+@app.get("/")
+def read_root():
+    return {"status": "online"}
+
+@app.get("/api/chat/history/{user_id}")
+async def get_webapp_chat_history(user_id: int):
+    try:
+        history = get_recent_chat_history(user_id, limit=20)
+        formatted = [{"role": m["role"], "message_text": m["content"]} for m in history]
+        return {"status": "success", "history": formatted}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.post("/api/chat/message")
+async def handle_webapp_chat_message(request: Request):
+    try:
+        data = await request.json()
+        user_id = int(data.get('user_id'))
+        text_msg = data.get('text', '').strip()
+        if not text_msg: return {"status": "error", "message": "Empty text"}
+        reply = get_legal_chat_reply(user_id, text_msg)
         return {"status": "success", "reply": reply}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-# Загрузка и анализ документов ИЗ МИНИ-АПП
-@app.post("/api/chat/upload-doc")
-async def api_upload_doc(user_id: int = Form(...), file: UploadFile = File(...)):
+@app.post("/api/analyze")
+async def handle_web_analysis(request: Request):
+    try:
+        data = await request.json()
+        user_id = int(data.get('user_id'))
+        username = data.get('username', 'Предприниматель')
+        country = data.get('country', None)
+        location = data.get('location', None)
+        legal_form = data.get('legal_form', None)
+        details = data.get('business_details', None)
+        push_time = data.get('push_time', None)
+        user_tz = data.get('timezone', None)
+        
+        save_user_data_extended(user_id, username, details, country, location, legal_form, push_time, user_tz)
+        if not details and not location: return {"status": "success"}
+
+        compiled_input = f"{country or ''} {location or ''} {legal_form or ''} {details or ''}"
+        report = generate_report_logic(user_id, compiled_input)
+        
+        flag = "🇺🇸" if country == "USA" else "🇷🇺" if country == "Russia" else "🌐"
+        bot.send_message(user_id, f"{flag} <b>Новый анализ из приложения</b>\n\n{report}", parse_mode='Markdown')
+        return {"status": "success", "report": report}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/history/{user_id}")
+async def get_user_history(user_id: int, tz: str = "UTC"):
+    try:
+        with engine.connect() as conn:
+            user_res = conn.execute(text("SELECT push_time, timezone FROM users WHERE user_id = :user_id"), {"user_id": user_id})
+            user_row = user_res.fetchone()
+            push_time = user_row[0] if user_row and user_row[0] else "09:00"
+            user_tz_str = user_row[1] if user_row and user_row[1] else "UTC"
+            
+            try: tz_obj = pytz.timezone(user_tz_str)
+            except: tz_obj = pytz.utc
+            
+            reports_res = conn.execute(text("SELECT input_text, report_text, created_at FROM reports WHERE user_id = :user_id ORDER BY created_at DESC"), {"user_id": user_id})
+            history = []
+            for row in reports_res.fetchall():
+                utc_dt = row[2]
+                if utc_dt.tzinfo is None: utc_dt = pytz.utc.localize(utc_dt)
+                history.append({
+                    "input_text": row[0],
+                    "report_text": row[1],
+                    "created_at": utc_dt.astimezone(tz_obj).strftime("%d.%m.%Y %H:%M")
+                })
+        return {"status": "success", "push_time": push_time, "history": history}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+# === ИСПРАВЛЕНО: НОВЫЕ ЭНДПОИНТЫ ДЛЯ ПРИЕМА ФАЙЛОВ ИЗ WEBAPP ===
+
+@app.post("/api/webapp/analyze-doc")
+async def handle_webapp_doc(user_id: int, file: UploadFile = File(...)):
+    """Принимает файлы документов PDF/DOCX прямо из интерфейса WebApp"""
     try:
         file_name = file.filename.lower()
         if not (file_name.endswith('.pdf') or file_name.endswith('.docx')):
-            return {"status": "error", "message": "Неверный формат файла. Разрешены только PDF и DOCX."}
+            return {"status": "error", "message": "Формат не поддерживается. Только PDF или DOCX."}
             
         content = await file.read()
         local_filename = f"webapp_doc_{user_id}_{file_name}"
-        with open(local_filename, "wb") as f:
+        with open(local_filename, 'wb') as f:
             f.write(content)
             
         text_content = ""
@@ -331,116 +438,169 @@ async def api_upload_doc(user_id: int = Form(...), file: UploadFile = File(...))
             
         text_content = text_content.strip()
         if len(text_content) < 50:
-            return {"status": "error", "message": "Файл не содержит считываемого текста (возможно, это изображение/скан)."}
+            return {"status": "error", "message": "Не удалось извлечь текст. Возможно, это скан-картинка."}
             
         if len(text_content) > 30000:
-            text_content = text_content[:30000] + "\n\n...[Текст урезан]..."
-            
-        save_chat_message(user_id, "user", f"[Файл договора: {file.filename}]")
-        
+            text_content = text_content[:30000] + "\n\n...[Текст обрезан из-за ограничений размера]..."
+
+        system_instruction = (
+            "Ты — опытный ИИ-юрист корпоративного уровня RuleGuard. Проведи экспресс-аудит загруженного договора.\n"
+            "Найди скрытые юридические ловушки, финансовые риски, жесткие штрафы и кабальные условия.\n\n"
+            "Сформируй ответ строго по этой структуре:\n"
+            "### 🔎 Общий вердикт по документу\n\n### ⚠️ Кабальные условия и скрытые риски\n\n### 🛠️ Что потребовать изменить / Протокол разногласий"
+        )
         user_context = get_user_context(user_id)
+        
         completion = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="llama-3.3-70b-versatile", 
             messages=[
-                {"role": "system", "content": DOC_AUDIT_INSTRUCTION},
-                {"role": "user", "content": f"Контекст бизнеса: {user_context}\n\nДОГОВОР:\n{text_content}"}
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": f"Контекст компании клиента: {user_context}\n\nТЕКСТ ДОГОВОРА:\n{text_content}"}
             ],
             temperature=0.2
         )
+        report = completion.choices[0].message.content
         
-        reply = completion.choices[0].message.content
-        save_chat_message(user_id, "assistant", reply)
-        return {"status": "success", "reply": reply}
+        try: bot.send_message(user_id, f"📋 **Результаты экспресс-аудита документа (из приложения):**\n\n{report}", parse_mode='Markdown')
+        except: pass
+        
+        return {"status": "success", "report": report}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-# Загрузка и обработка аудио ИЗ МИНИ-АПП
-@app.post("/api/chat/upload-voice")
-async def api_upload_voice(user_id: int = Form(...), file: UploadFile = File(...)):
+
+@app.post("/api/webapp/analyze-voice")
+async def handle_webapp_voice(user_id: int, file: UploadFile = File(...)):
+    """Принимает голосовые сообщения в формате OGG/MP3/WAV прямо из интерфейса WebApp"""
     try:
         content = await file.read()
-        local_filename = f"webapp_voice_{user_id}.wav"
-        with open(local_filename, "wb") as f:
+        filename = f"webapp_voice_{user_id}.ogg"
+        with open(filename, 'wb') as f:
             f.write(content)
             
-        # Транскрибация через Whisper в Groq
-        with open(local_filename, "rb") as audio_file:
+        with open(filename, "rb") as audio_file:
             transcription = groq_client.audio.transcriptions.create(
-                file=(local_filename, audio_file.read()),
-                model="whisper-large-v3",
-                language="ru"
+                file=(filename, audio_file.read()), model="whisper-large-v3", language="ru", response_format="text"
             )
+        if os.path.exists(filename):
+            os.remove(filename)
             
-        if os.path.exists(local_filename):
-            os.remove(local_filename)
-            
-        user_text = transcription.text.strip()
+        user_text = str(transcription).strip()
         if not user_text:
-            return {"status": "error", "message": "Не удалось разобрать речь в аудиосообщении."}
+            return {"status": "error", "message": "Не удалось распознать речь."}
             
-        save_chat_message(user_id, "user", f"[Голосовое сообщение]: {user_text}")
-        
-        user_context = get_user_context(user_id)
-        chat_context = get_chat_context(user_id, limit=6)
-        
-        system_prompt = (
-            "Ты — ИИ-юрист компании RuleGuard. Отвечай кратко, экспертно и исключительно по делу.\n"
-            f"Контекст бизнеса твоего собеседника: {user_context}"
-        )
-        
-        messages = [{"role": "system", "content": system_prompt}] + chat_context
-        
-        completion = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=messages,
-            temperature=0.3
-        )
-        
-        reply = completion.choices[0].message.content
-        save_chat_message(user_id, "assistant", reply)
-        
-        return {"status": "success", "transcript": user_text, "reply": reply}
+        reply = get_legal_chat_reply(user_id, user_text)
+        return {"status": "success", "user_text": user_text, "reply": reply}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
 # =====================================================================
-# ОБРАБОТКА И АНАЛИЗ В TELEGRAM ЧАТЕ (КНОПКИ, ДОКУМЕНТЫ, ГОЛОС)
+# ПЛАНИРОВЩИК И АНТИ-СОН
+# =====================================================================
+def send_daily_push_notifications():
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text("SELECT user_id, user_name, business_description, location, push_time, timezone, country, legal_form FROM users"))
+            all_users = result.fetchall()
+        
+        for user in all_users:
+            user_id, username, business, location, push_time, user_tz, country, legal_form = user
+            if not location or not business: continue
+            if not user_tz: user_tz = 'UTC'
+                
+            tz = pytz.timezone(user_tz)
+            if datetime.now(tz).strftime("%H:%M") == push_time:
+                search_query = f"{country or ''} {location or ''} {legal_form or ''} {business or ''}"
+                web_data = search_internet(search_query)
+                
+                completion = groq_client.chat.completions.create(
+                    model="llama-3.3-70b-versatile", 
+                    messages=[
+                        {"role": "system", "content": "Ты — ИИ-юрист RuleGuard. Напиши очень краткую сводку законов на сегодня (2-3 предложения)."},
+                        {"role": "user", "content": f"Бизнес: {business}, Локация: {location}. Данные: {web_data}"}
+                    ],
+                    temperature=0.4
+                )
+                bot.send_message(user_id, f"🛡️ <b>Ежедневный RuleGuard Радар</b>\n\n{completion.choices[0].message.content}", parse_mode="HTML")
+    except Exception as e:
+        print(f"Ошибка планировщика пушей: {e}")
+
+def smart_ping_render():
+    if 7 <= datetime.now().hour < 22:
+        try: requests.get(RENDER_APP_URL, timeout=10)
+        except: pass
+
+# =====================================================================
+# ОБРАБОТЧИКИ ДЛЯ ПРЯМОГО ПОТОКА ТЕЛЕГРАМ (ДИАЛОГ В ЧАТЕ)
 # =====================================================================
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
+    save_user_data(message.from_user.id, username=message.from_user.first_name)
     markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
-    btn_app = telebot.types.KeyboardButton("🚀 Открыть RuleGuard AI", web_app=telebot.types.WebAppInfo(url="https://artemiiborovko.github.io/ruleguard-ui/"))
-    btn_refresh = telebot.types.KeyboardButton("🔄 Повторить анализ")
-    markup.add(btn_app, btn_refresh)
+    web_app_info = telebot.types.WebAppInfo("https://artemiiborovko.github.io/ruleguard-ui/")
+    markup.add(telebot.types.KeyboardButton(text="🚀 Открыть анкету RuleGuard", web_app=web_app_info))
+    markup.add(telebot.types.KeyboardButton(text="🔄 Повторить последний анализ"))
     
-    welcome_text = (
-        "Приветствую! Я — ваш автоматический ИИ-юрист **RuleGuard**.\n\n"
-        "✨ Нажмите на кнопку внизу, чтобы открыть полноценный интерфейс, настроить параметры вашего дела и увидеть графики рисков.\n\n"
-        "📎 Вы можете отправить файл договора (**PDF** или **DOCX**) прямо сюда в чат для мгновенного экспресс-аудита кабальных условий."
-    )
-    bot.reply_to(message, welcome_text, reply_markup=markup, parse_mode='Markdown')
+    bot.reply_to(message, f"🛡️ **Привет, {message.from_user.first_name}!** Бот снова полностью активен как в WebApp, так и прямо здесь в чате.", reply_markup=markup, parse_mode='Markdown')
 
-@bot.message_handler(func=lambda msg: msg.text == "🔄 Повторить анализ")
-def handle_text_refresh(message):
-    bot.reply_to(message, "🔄 Вы запросили обновление отчета. Запускаю повторный анализ рисков из базы данных...")
-    process_ai_analysis(message.from_user.id)
-    bot.send_message(message.chat.id, "✅ Анализ обновлен. Откройте приложение, чтобы увидеть свежие данные!")
+@bot.message_handler(func=lambda message: True, content_types=['text'])
+def handle_text(message):
+    user_id = message.from_user.id
+    if message.text == "🔄 Повторить последний анализ":
+        bot.send_chat_action(message.chat.id, 'typing')
+        with engine.connect() as conn:
+            result = conn.execute(text("SELECT country, location, legal_form, business_description FROM users WHERE user_id = :user_id"), {"user_id": user_id})
+            row = result.fetchone()
+            
+        if not row or not row[3]:
+            bot.reply_to(message, "📭 Заполните сначала анкету в приложении!")
+            return
+            
+        bot.reply_to(message, "⏳ *Обновляю отчет через Tavily API...*", parse_mode='Markdown')
+        try:
+            report = generate_report_logic(user_id, f"{row[0]} {row[1]} {row[2]} {row[3]}")
+            bot.send_message(user_id, f"🔄 **Свежий отчет:**\n\n{report}", parse_mode='Markdown')
+        except Exception as e:
+            bot.reply_to(message, f"⚠️ Ошибка: {e}")
+    else:
+        run_legal_analysis(message, message.text)
+
+@bot.message_handler(content_types=['voice'])
+def handle_voice(message):
+    try:
+        bot.send_chat_action(message.chat.id, 'record_audio')
+        file_info = bot.get_file(message.voice.file_id)
+        downloaded_file = bot.download_file(file_info.file_path)
+        filename = f"voice_{message.voice.file_id}.ogg"
+        with open(filename, 'wb') as new_file: new_file.write(downloaded_file)
+            
+        with open(filename, "rb") as audio_file:
+            transcription = groq_client.audio.transcriptions.create(
+                file=(filename, audio_file.read()), model="whisper-large-v3", language="ru", response_format="text"
+            )
+        if os.path.exists(filename): os.remove(filename)
+        user_text = str(transcription).strip()
+        if user_text:
+            bot.reply_to(message, f"🗣️ *Текст:* {user_text}", parse_mode='Markdown')
+            run_legal_analysis(message, user_text)
+    except Exception as e:
+        bot.reply_to(message, f"⚠️ Ошибка: {str(e)}")
 
 @bot.message_handler(content_types=['document'])
-def handle_telegram_document(message):
+def handle_document(message):
     try:
         file_info = bot.get_file(message.document.file_id)
         file_name = message.document.file_name.lower()
         
         if not (file_name.endswith('.pdf') or file_name.endswith('.docx')):
-            bot.reply_to(message, "❌ Я принимаю только файлы в формате **PDF** или **DOCX** (Word).")
+            bot.reply_to(message, "❌ Я принимаю только файлы в формате **PDF** или **DOCX**.")
             return
             
         bot.send_chat_action(message.chat.id, 'typing')
-        bot.reply_to(message, "📥 *Скачиваю и изучаю документ из чата...* Это займет около 10-15 секунд.", parse_mode='Markdown')
+        bot.reply_to(message, "📥 *Скачиваю и изучаю документ...*", parse_mode='Markdown')
         
         downloaded_file = bot.download_file(file_info.file_path)
-        local_filename = f"tg_doc_{message.document.file_id}_{file_name}"
+        local_filename = f"doc_{message.document.file_id}_{file_name}"
         
         with open(local_filename, 'wb') as new_file:
             new_file.write(downloaded_file)
@@ -460,139 +620,38 @@ def handle_telegram_document(message):
             
         text_content = text_content.strip()
         if len(text_content) < 50:
-            bot.reply_to(message, "⚠️ Не удалось прочесть текст документа. Проверьте правильность файла.")
+            bot.reply_to(message, "⚠️ Не удалось извлечь текст из документа.")
             return
             
         if len(text_content) > 30000:
             text_content = text_content[:30000] + "\n\n...[Текст обрезан]..."
 
-        save_chat_message(message.from_user.id, "user", f"[Чат-файл: {message.document.file_name}]")
-        
+        system_instruction = (
+            "Ты — опытный ИИ-юрист корпоративного уровня RuleGuard. Проведи экспресс-аудит договора.\n"
+            "Найди скрытые ловушки, финансовые риски, штрафы.\n\n"
+            "Структура:\n### 🔎 Вердикт\n### ⚠️ Риски\n### 🛠️ Что изменить"
+        )
         user_context = get_user_context(message.from_user.id)
+        
         completion = groq_client.chat.completions.create(
             model="llama-3.3-70b-versatile", 
             messages=[
-                {"role": "system", "content": DOC_AUDIT_INSTRUCTION},
-                {"role": "user", "content": f"Контекст бизнеса: {user_context}\n\nТЕКСТ ДОГОВОРА:\n{text_content}"}
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": f"Контекст компании: {user_context}\n\nТЕКСТ:\n{text_content}"}
             ],
             temperature=0.2
         )
-        
-        reply = completion.choices[0].message.content
-        save_chat_message(message.from_user.id, "assistant", reply)
-        bot.send_message(message.chat.id, f"📋 **Экспресс-аудит документа:**\n\n{reply}", parse_mode='Markdown')
+        bot.send_message(message.chat.id, f"📋 **Результаты экспресс-аудита документа:**\n\n{completion.choices[0].message.content}", parse_mode='Markdown')
     except Exception as e:
         bot.reply_to(message, f"⚠️ Ошибка при анализе документа: {str(e)}")
 
-@bot.message_handler(content_types=['voice'])
-def handle_telegram_voice(message):
-    try:
-        file_info = bot.get_file(message.voice.file_id)
-        downloaded_file = bot.download_file(file_info.file_path)
-        local_filename = f"tg_voice_{message.voice.file_id}.ogg"
-        
-        with open(local_filename, 'wb') as new_file:
-            new_file.write(downloaded_file)
-            
-        bot.send_chat_action(message.chat.id, 'typing')
-        
-        with open(local_filename, "rb") as audio_file:
-            transcription = groq_client.audio.transcriptions.create(
-                file=(local_filename, audio_file.read()),
-                model="whisper-large-v3",
-                language="ru"
-            )
-            
-        if os.path.exists(local_filename):
-            os.remove(local_filename)
-            
-        user_text = transcription.text.strip()
-        if not user_text:
-            bot.reply_to(message, "⚠️ Не удалось разобрать аудио.")
-            return
-            
-        save_chat_message(message.from_user.id, "user", f"[Голос в чате]: {user_text}")
-        
-        user_context = get_user_context(message.from_user.id)
-        chat_context = get_chat_context(message.from_user.id, limit=6)
-        
-        system_prompt = (
-            "Ты — ИИ-юрист компании RuleGuard. Отвечай кратко и исключительно по делу.\n"
-            f"Контекст бизнеса: {user_context}"
-        )
-        
-        messages = [{"role": "system", "content": system_prompt}] + chat_context
-        completion = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=messages,
-            temperature=0.3
-        )
-        
-        reply = completion.choices[0].message.content
-        save_chat_message(message.from_user.id, "assistant", reply)
-        bot.reply_to(message, f"🎙️ *Расшифровка:* \"{user_text}\"\n\n{reply}", parse_mode='Markdown')
-    except Exception as e:
-        bot.reply_to(message, f"⚠️ Ошибка обработки аудио: {str(e)}")
-
-@bot.message_handler(func=lambda msg: True)
-def handle_telegram_text(message):
-    try:
-        save_chat_message(message.from_user.id, "user", message.text)
-        user_context = get_user_context(message.from_user.id)
-        chat_context = get_chat_context(message.from_user.id, limit=6)
-        
-        system_prompt = (
-            "Ты — ИИ-юрист компании RuleGuard. Отвечай на русском языке, содержательно и профессионально.\n"
-            f"Контекст компании: {user_context}"
-        )
-        
-        messages = [{"role": "system", "content": system_prompt}] + chat_context
-        completion = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=messages,
-            temperature=0.3
-        )
-        
-        reply = completion.choices[0].message.content
-        save_chat_message(message.from_user.id, "assistant", reply)
-        bot.reply_to(message, reply, parse_mode='Markdown')
-    except Exception as e:
-        bot.reply_to(message, f"⚠️ Ошибка чата: {str(e)}")
-
-# Планировщик пушей
-def check_and_send_pushes():
-    db = SessionLocal()
-    try:
-        now_utc = datetime.datetime.utcnow()
-        users = db.query(UserProfile).all()
-        for u in users:
-            try:
-                user_tz = pytz.timezone(u.timezone)
-                user_time = now_utc.replace(tzinfo=pytz.utc).astimezone(user_tz)
-                current_hm = user_time.strftime("%H:%M")
-                
-                if current_hm == u.push_time:
-                    bot.send_message(u.user_id, "🔔 **RuleGuard Утренний Пуш:** Проверяю правовую стабильность вашего бизнеса на сегодняшний день. Загляните в Mini App для контроля рисков!")
-            except Exception as pe:
-                logger.error(f"Push send error for user {u.user_id}: {pe}")
-    finally:
-        db.close()
-
-def smart_ping_render():
-    try:
-        requests.get("https://ruleguard-backend.onrender.com/api/history/542709522", timeout=5)
-    except:
-        pass
-
-scheduler = BackgroundScheduler()
-scheduler.add_job(check_and_send_pushes, 'interval', minutes=1)
+# 6. ЗАПУСК
+init_db()
+scheduler = BackgroundScheduler(daemon=True)
+scheduler.add_job(send_daily_push_notifications, 'interval', minutes=1)
 scheduler.add_job(smart_ping_render, 'interval', minutes=10)
 scheduler.start()
 
 @app.on_event("startup")
 def start_bot_polling():
     threading.Thread(target=bot.infinity_polling, kwargs={"skip_pending": True}, daemon=True).start()
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8000)))
