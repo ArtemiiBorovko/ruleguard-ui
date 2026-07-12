@@ -8,3 +8,5 @@ requests==2.32.3
 httpx==0.27.0
 psycopg2-binary
 sqlalchemy
+pypdf==4.2.0
+docx2txt==0.8
