@@ -19,7 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # 1. ТОКЕНЫ И НАСТРОЙКА
 TELEGRAM_TOKEN = "8811867508:AAFxcE58OJbSbt9lmZHRFcpayMYfOE0AXLI"
-GROQ_API_KEY = "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"
+GROQ_API_KEY = "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"
 DATABASE_URL = "postgresql://admin:qmoBE1mBhoi4ANcFHBs8du2Jw3hSql3g@dpg-d97s2pnavr4c73di73hg-a/ruleguard"
 
 # Бесплатный ключ Tavily
