@@ -473,7 +473,7 @@
             .then(res => res.json())
             .then(data => {
                 if (data.status === 'success') {
-                    box.innerHTML += `<div class="chat-msg assistant">${data.reply}</div>`;
+                    box.innerHTML += `<div class="chat-msg assistant">${data.report}</div>`;
                 } else {
                     box.innerHTML += `<div class="chat-msg assistant">⚠️ Ошибка: ${data.message}</div>`;
                 }
@@ -492,45 +492,40 @@
         function handleFileSelected() {
             const fileInput = document.getElementById('chat-file-input');
             if (fileInput.files.length === 0) return;
-        
+
             const file = fileInput.files[0];
             const box = document.getElementById('chat-messages-box');
             
-            // Отображаем сообщение от пользователя в чате
-            box.innerHTML += `<div class="chat-msg user">Отправлен файл: <b>${file.name}</b></div>`;
-            
-            // Создаем временный лоадер
-            const loadingId = "file-loader-" + Date.now();
-            box.innerHTML += `<div class="chat-msg assistant" id="${loadingId}">📥 Анализирую документ...</div>`;
+            box.innerHTML += `<div class="chat-msg user"><i class="fa-solid fa-file-contract"></i> Отправлен файл: <b>${file.name}</b></div>`;
+            box.innerHTML += `<div class="chat-msg assistant" id="file-loading-msg">📥 Читаю и анализирую ваш договор... Пожалуйста, подождите.</div>`;
             box.scrollTop = box.scrollHeight;
-        
+
             const formData = new FormData();
-            formData.append('file', file); 
-        
-            // Отправляем POST-запрос с query-параметром user_id
-            fetch(`${BACKEND_URL}/api/chat/upload-doc?user_id=${userTelegramId}`, {
+            formData.append('user_id', userTelegramId);
+            formData.append('file', file);
+
+            fetch(`${BACKEND_URL}/api/webapp/analyze-doc?user_id=${userTelegramId}`, {
                 method: 'POST',
                 body: formData
             })
             .then(res => res.json())
             .then(data => {
-                document.getElementById(loadingId)?.remove();
+                document.getElementById('file-loading-msg')?.remove();
                 if (data.status === 'success') {
-                    // Твой бэкенд возвращает ответ в поле reply
-                    box.innerHTML += `<div class="chat-msg assistant">${data.reply}</div>`;
+                    box.innerHTML += `<div class="chat-msg assistant">${data.report}</div>`;
                 } else {
-                    box.innerHTML += `<div class="chat-msg assistant">⚠️ Ошибка: ${data.message}</div>`;
+                    box.innerHTML += `<div class="chat-msg assistant">⚠️ Ошибка анализа файла: ${data.message}</div>`;
                 }
                 box.scrollTop = box.scrollHeight;
             })
             .catch(err => {
                 console.error(err);
-                document.getElementById(loadingId)?.remove();
-                box.innerHTML += `<div class="chat-msg assistant">⚠️ Не удалось отправить файл.</div>`;
+                document.getElementById('file-loading-msg')?.remove();
+                box.innerHTML += `<div class="chat-msg assistant">⚠️ Не удалось отправить файл на сервер.</div>`;
                 box.scrollTop = box.scrollHeight;
             })
             .finally(() => {
-                fileInput.value = ''; // Сбрасываем инпут
+                fileInput.value = ''; 
             });
         }
 
@@ -579,7 +574,7 @@
             formData.append('user_id', userTelegramId);
             formData.append('file', blob, 'voice.wav');
 
-            fetch(`${BACKEND_URL}/api/chat/upload-voice`, {
+            fetch(`${BACKEND_URL}/api/webapp/analyze-voice?user_id=${userTelegramId}`, {
                 method: 'POST',
                 body: formData
             })
@@ -587,7 +582,7 @@
             .then(data => {
                 document.getElementById('voice-loading-msg')?.remove();
                 if (data.status === 'success') {
-                    box.innerHTML += `<div class="chat-msg assistant"><i>Текст вашего аудио: "${data.transcript}"</i>\n\n${data.reply}</div>`;
+                    box.innerHTML += `<div class="chat-msg assistant"><i>Текст вашего аудио: "${data.user_text}"</i>\n\n${data.report}</div>`;
                 } else {
                     box.innerHTML += `<div class="chat-msg assistant">⚠️ Ошибка аудио: ${data.message}</div>`;
                 }
