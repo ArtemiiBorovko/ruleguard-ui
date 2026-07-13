@@ -492,40 +492,45 @@
         function handleFileSelected() {
             const fileInput = document.getElementById('chat-file-input');
             if (fileInput.files.length === 0) return;
-
+        
             const file = fileInput.files[0];
             const box = document.getElementById('chat-messages-box');
             
-            box.innerHTML += `<div class="chat-msg user"><i class="fa-solid fa-file-contract"></i> Отправлен файл: <b>${file.name}</b></div>`;
-            box.innerHTML += `<div class="chat-msg assistant" id="file-loading-msg">📥 Читаю и анализирую ваш договор... Пожалуйста, подождите.</div>`;
+            // Отображаем сообщение от пользователя в чате
+            box.innerHTML += `<div class="chat-msg user">Отправлен файл: <b>${file.name}</b></div>`;
+            
+            // Создаем временный лоадер
+            const loadingId = "file-loader-" + Date.now();
+            box.innerHTML += `<div class="chat-msg assistant" id="${loadingId}">📥 Анализирую документ...</div>`;
             box.scrollTop = box.scrollHeight;
-
+        
             const formData = new FormData();
-            formData.append('user_id', userTelegramId);
-            formData.append('file', file);
-
-            fetch(`${BACKEND_URL}/api/chat/upload-doc`, {
+            formData.append('file', file); 
+        
+            // Отправляем POST-запрос с query-параметром user_id
+            fetch(`${BACKEND_URL}/api/chat/upload-doc?user_id=${userTelegramId}`, {
                 method: 'POST',
                 body: formData
             })
             .then(res => res.json())
             .then(data => {
-                document.getElementById('file-loading-msg')?.remove();
+                document.getElementById(loadingId)?.remove();
                 if (data.status === 'success') {
+                    // Твой бэкенд возвращает ответ в поле reply
                     box.innerHTML += `<div class="chat-msg assistant">${data.reply}</div>`;
                 } else {
-                    box.innerHTML += `<div class="chat-msg assistant">⚠️ Ошибка анализа файла: ${data.message}</div>`;
+                    box.innerHTML += `<div class="chat-msg assistant">⚠️ Ошибка: ${data.message}</div>`;
                 }
                 box.scrollTop = box.scrollHeight;
             })
             .catch(err => {
                 console.error(err);
-                document.getElementById('file-loading-msg')?.remove();
-                box.innerHTML += `<div class="chat-msg assistant">⚠️ Не удалось отправить файл на сервер.</div>`;
+                document.getElementById(loadingId)?.remove();
+                box.innerHTML += `<div class="chat-msg assistant">⚠️ Не удалось отправить файл.</div>`;
                 box.scrollTop = box.scrollHeight;
             })
             .finally(() => {
-                fileInput.value = ''; 
+                fileInput.value = ''; // Сбрасываем инпут
             });
         }
 
