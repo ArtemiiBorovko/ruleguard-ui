@@ -26,636 +26,444 @@
             --text-main: #000000;
             --text-muted: #636366;
             --accent-color: #34C759;
-            --accent-hover: #28A745;
+            --accent-hover: #28CD41;
             --input-bg: #E5E5EA;
-            --tab-bg: #E5E5EA;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            -webkit-tap-highlight-color: transparent;
+            --tab-bg: #FFFFFF;
         }
 
         body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             background-color: var(--bg-color);
             color: var(--text-main);
-            overflow-x: hidden;
-            padding-bottom: 70px;
-        }
-
-        .header-status {
+            margin: 0;
+            padding: 16px 16px 90px 16px;
             display: flex;
+            flex-direction: column;
             align-items: center;
-            justify-content: space-between;
-            padding: 16px;
-            background: var(--card-bg);
-            border-bottom: 1px solid var(--card-border);
+            -webkit-font-smoothing: antialiased;
+            transition: background 0.3s ease, color 0.3s ease;
         }
 
-        .logo-area {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .logo-svg {
-            width: 32px;
-            height: 32px;
-            fill: var(--accent-color);
-        }
-
-        .brand-name {
-            font-size: 18px;
-            font-weight: 700;
-            letter-spacing: 0.5px;
-        }
-
-        .screen {
-            display: none;
-            padding: 16px;
-            animation: fadeIn 0.2s ease-in-out;
-        }
-
-        .screen.active {
-            display: block;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(5px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
+        .container { width: 100%; max-width: 420px; }
 
         .card {
-            background: var(--card-bg);
+            background-color: var(--card-bg);
             border: 1px solid var(--card-border);
-            border-radius: 12px;
-            padding: 16px;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
             margin-bottom: 16px;
+            animation: fadeIn 0.3s ease forwards;
         }
 
-        .card-title {
-            font-size: 16px;
-            font-weight: 600;
-            margin-bottom: 12px;
-            display: flex;
+        .radar-box { text-align: center; padding: 20px 0; }
+        
+        .app-logo {
+            width: 76px;
+            height: 92px;
+            margin: 0 auto 12px auto;
+        }
+
+        .app-logo path {
+            fill: var(--accent-color);
+            transition: fill 0.3s ease;
+        }
+        
+        .status-badge {
+            display: inline-flex;
             align-items: center;
-            gap: 8px;
-        }
-
-        .form-group {
-            margin-bottom: 12px;
-        }
-
-        .form-group label {
-            display: block;
+            gap: 6px;
+            background: rgba(48, 209, 88, 0.15);
+            color: var(--accent-color);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-weight: 700;
             font-size: 13px;
-            color: var(--text-muted);
-            margin-bottom: 6px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            margin-top: 10px;
         }
 
-        .form-control {
-            width: 100%;
-            background: var(--input-bg);
-            border: 1px solid var(--card-border);
-            color: var(--text-main);
-            padding: 10px 12px;
-            border-radius: 8px;
-            font-size: 15px;
-            outline: none;
+        .analysis-output {
+            background-color: var(--card-bg);
+            border-left: 4px solid var(--accent-color);
+            padding: 14px;
+            border-radius: 0 12px 12px 0;
+            font-size: 14px;
+            line-height: 1.5;
+            white-space: pre-line;
+            text-align: left;
         }
 
-        .form-control:focus {
-            border-color: var(--accent-color);
+        .tab-bar {
+            position: fixed; bottom: 0; left: 0; right: 0;
+            background-color: var(--tab-bg); border-top: 1px solid var(--card-border);
+            display: flex; justify-content: space-around;
+            padding: 10px 0 calc(10px + env(safe-area-inset-bottom, 0px)) 0;
+            z-index: 1000;
+        }
+        
+        .tab-item {
+            display: flex; flex-direction: column; align-items: center; gap: 4px;
+            color: var(--text-muted); font-size: 11px; font-weight: 500; cursor: pointer; width: 25%;
+        }
+        .tab-item i { font-size: 20px; }
+        .tab-item.active { color: var(--accent-color); }
+
+        .app-screen { display: none; }
+        .app-screen.active { display: flex; flex-direction: column; }
+
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        label { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; }
+        
+        select, input, textarea {
+            width: 100%; box-sizing: border-box; background-color: var(--input-bg);
+            border: 1px solid var(--card-border); border-radius: 10px; padding: 12px;
+            color: var(--text-main); font-size: 15px; font-family: inherit; outline: none;
+        }
+        textarea { resize: none; height: 90px; }
+        
+        .btn-submit {
+            background-color: var(--accent-color); color: #000000; font-weight: 700;
+            border: none; border-radius: 12px; padding: 14px; font-size: 15px; cursor: pointer;
+            display: flex; justify-content: center; align-items: center; gap: 8px;
+            transition: background 0.2s ease, transform 0.1s ease;
+        }
+        .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-submit:active:not(:disabled) { transform: scale(0.98); }
+        .theme-switch-box { display: flex; justify-content: space-between; align-items: center; }
+
+        #refresh-analysis-btn {
+            animation: fadeIn 0.3s ease forwards;
         }
 
-        select.form-control {
-            appearance: none;
-            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='white'><path d='M7 10l5 5 5-5z'/></svg>");
-            background-repeat: no-repeat;
-            background-position: right 10px center;
+        .spinner {
+            display: none;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #000000;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
         }
 
-        [data-theme="light"] select.form-control {
-            background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' fill='black'><path d='M7 10l5 5 5-5z'/></svg>");
-        }
-
-        .btn-primary {
-            width: 100%;
-            background: var(--accent-color);
-            color: #FFF;
-            border: none;
-            padding: 12px;
-            border-radius: 8px;
-            font-size: 15px;
-            font-weight: 600;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-        }
-
-        .btn-primary:active {
-            background: var(--accent-hover);
-        }
-
-        .btn-secondary {
-            background: transparent;
-            border: 1px solid var(--card-border);
-            color: var(--text-main);
-            padding: 6px 12px;
-            border-radius: 6px;
-            font-size: 13px;
-            cursor: pointer;
-        }
-
-        /* Chat Layout */
+        /* Стиль для интерактивного встроенного чата */
         .chat-container {
             display: flex;
             flex-direction: column;
-            height: calc(100vh - 150px);
-        }
-
-        .chat-messages {
-            flex: 1;
+            gap: 10px;
+            max-height: 280px;
             overflow-y: auto;
-            padding-bottom: 10px;
+            padding-right: 4px;
+            margin-bottom: 10px;
         }
-
         .chat-msg {
-            max-width: 85%;
             padding: 10px 14px;
             border-radius: 12px;
-            margin-bottom: 8px;
-            font-size: 14px;
+            font-size: 13px;
             line-height: 1.4;
+            max-width: 85%;
             word-wrap: break-word;
             white-space: pre-line;
         }
-
         .chat-msg.user {
-            background: var(--accent-color);
-            color: #FFF;
-            margin-left: auto;
-            border-bottom-right-radius: 2px;
+            background-color: var(--accent-color);
+            color: #000000;
+            align-self: flex-end;
+            border-bottom-right-radius: 4px;
         }
-
         .chat-msg.assistant {
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
+            background-color: var(--input-bg);
             color: var(--text-main);
-            margin-left: 0;
-            border-bottom-left-radius: 2px;
+            border: 1px solid var(--card-border);
+            align-self: flex-start;
+            border-bottom-left-radius: 4px;
         }
-
-        .chat-input-bar {
+        .chat-input-row {
             display: flex;
+            gap: 6px;
             align-items: center;
-            gap: 8px;
-            background: var(--card-bg);
-            border: 1px solid var(--card-border);
-            padding: 8px;
-            border-radius: 24px;
         }
-
-        .chat-input-bar input {
-            flex: 1;
-            background: transparent;
-            border: none;
-            color: var(--text-main);
-            outline: none;
-            padding: 4px 8px;
-            font-size: 15px;
+        .chat-input-row input {
+            padding: 10px;
+            font-size: 14px;
+            border-radius: 8px;
+            flex-grow: 1;
         }
-
         .chat-action-btn {
-            background: transparent;
-            border: none;
-            color: var(--text-muted);
-            font-size: 18px;
+            background-color: var(--input-bg);
+            color: var(--text-main);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            width: 38px;
+            height: 38px;
             cursor: pointer;
-            width: 36px;
-            height: 36px;
             display: flex;
             align-items: center;
             justify-content: center;
-            border-radius: 50%;
+            font-size: 16px;
+            flex-shrink: 0;
+            transition: all 0.2s ease;
         }
-
-        .chat-action-btn:active {
-            color: var(--accent-color);
-            background: var(--input-bg);
-        }
-
         .chat-action-btn.recording {
-            color: #FF3B30 !important;
-            animation: pulse 1s infinite alternate;
+            background-color: #FF3B30;
+            color: #FFFFFF;
+            animation: pulse 1.2s infinite;
+        }
+        .chat-send-btn {
+            background-color: var(--accent-color);
+            color: #000000;
+            border: none;
+            border-radius: 8px;
+            width: 38px;
+            height: 38px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         @keyframes pulse {
-            from { transform: scale(1); opacity: 0.8; }
-            to { transform: scale(1.15); opacity: 1; }
-        }
-
-        /* Radar Chart Fallback CSS */
-        .radar-box {
-            width: 100%;
-            height: 220px;
-            position: relative;
-            margin: 15px 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .radar-svg {
-            width: 100%;
-            height: 100%;
-        }
-
-        .risk-item {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 10px 0;
-            border-bottom: 1px solid var(--card-border);
-        }
-
-        .risk-item:last-child {
-            border-bottom: none;
-        }
-
-        .risk-badge {
-            padding: 3px 8px;
-            border-radius: 4px;
-            font-size: 11px;
-            font-weight: 700;
-        }
-
-        .badge-high { background: rgba(255,59,48,0.2); color: #FF3B30; }
-        .badge-med { background: rgba(255,149,0,0.2); color: #FF9500; }
-        .badge-low { background: rgba(48,209,88,0.2); color: #30D158; }
-
-        /* Navigation Bar */
-        .nav-bar {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            height: 60px;
-            background: var(--card-bg);
-            border-top: 1px solid var(--card-border);
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-            z-index: 1000;
-        }
-
-        .nav-item {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            color: var(--text-muted);
-            font-size: 11px;
-            text-decoration: none;
-            cursor: pointer;
-            gap: 4px;
-            flex: 1;
-            padding: 8px 0;
-        }
-
-        .nav-item i {
-            font-size: 18px;
-        }
-
-        .nav-item.active {
-            color: var(--accent-color);
-        }
-
-        .hidden-file-input {
-            display: none;
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.08); opacity: 0.8; }
+            100% { transform: scale(1); opacity: 1; }
         }
     </style>
 </head>
 <body>
 
-    <div class="header-status">
-        <div class="logo-area">
-            <svg class="logo-svg" viewBox="0 0 24 24">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-            </svg>
-            <div class="brand-name">RuleGuard AI</div>
-        </div>
-        <button class="btn-secondary" onclick="toggleTheme()"><i class="fa-solid fa-moon"></i></button>
-    </div>
-
-    <div id="screen-profile" class="screen active">
-        <div class="card">
-            <div class="card-title"><i class="fa-solid fa-sliders text-accent"></i> Параметры Бизнеса</div>
-            
-            <div class="form-group">
-                <label>Юрисдикция / Страна</label>
-                <select id="biz-country" class="form-control" onchange="updateBusinessForms()">
-                    <option value="RU">Россия</option>
-                    <option value="AE">ОАЭ (Dubai / Freezones)</option>
-                    <option value="US">США (Delaware / Wyoming)</option>
-                    <option value="KZ">Казахстан</option>
-                </select>
-            </div>
-
-            <div class="form-group">
-                <label>Организационная форма</label>
-                <select id="biz-form" class="form-control"></select>
-            </div>
-
-            <div class="form-group">
-                <label>Город / Регион локации</label>
-                <input type="text" id="biz-location" class="form-control" placeholder="Например: Москва / Дубай Медиа Сити">
-            </div>
-
-            <div class="form-group">
-                <label>Чем занимается проект (краткое описание)</label>
-                <textarea id="biz-description" class="form-control" rows="3" placeholder="Например: Разработка B2B SaaS системы автоматического визуального контроля стройплощадок..."></textarea>
-            </div>
-
-            <div class="form-group">
-                <label>Время для ежедневных уведомлений (Push-сводка)</label>
-                <input type="time" id="push-time" class="form-control" value="10:00">
-            </div>
-
-            <button class="btn-primary" id="btn-save-analysis" onclick="runAIAnalysis()">
-                <i class="fa-solid fa-bolt"></i> <span id="btn-analysis-text">Запустить анализ рисков</span>
-            </button>
-        </div>
-    </div>
-
-    <div id="screen-radar" class="screen">
-        <div class="card" style="text-align: center;">
-            <div class="card-title" style="justify-content: center;"><i class="fa-solid fa-chart-pie"></i> Матрица правовых рисков</div>
-            <p style="font-size: 13px; color: var(--text-muted);">Интерактивный радар комплаенс-угроз на 2026 год</p>
-            
-            <div class="radar-box">
-                <svg class="radar-svg" viewBox="0 0 200 200">
-                    <polygon points="100,20 176,75 147,165 53,165 24,75" fill="none" stroke="#24242B" stroke-width="1"/>
-                    <polygon points="100,40 161,84 138,152 62,152 39,84" fill="none" stroke="#24242B" stroke-width="1"/>
-                    <polygon points="100,60 146,93 128,139 72,139 54,93" fill="none" stroke="#24242B" stroke-width="1"/>
-                    <polygon points="100,80 131,102 119,126 81,126 69,102" fill="none" stroke="#24242B" stroke-width="1"/>
-                    
-                    <line x1="100" y1="100" x2="100" y2="20" stroke="#24242B" stroke-width="1"/>
-                    <line x1="100" y1="100" x2="176" y2="75" stroke="#24242B" stroke-width="1"/>
-                    <line x1="100" y1="100" x2="147" y2="165" stroke="#24242B" stroke-width="1"/>
-                    <line x1="100" y1="100" x2="53" y2="165" stroke="#24242B" stroke-width="1"/>
-                    <line x1="100" y1="100" x2="24" y2="75" stroke="#24242B" stroke-width="1"/>
-                    
-                    <polygon id="radar-poly" points="100,100 100,100 100,100 100,100 100,100" fill="rgba(48,209,88,0.25)" stroke="#30D158" stroke-width="2"/>
+    <div class="container">
+        
+        <div id="screen-radar" class="app-screen active">
+            <div class="card radar-box">
+                <svg class="app-logo" viewBox="0 0 743 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M0 158.594C0 126.974 23.9775 99.5209 51.4238 92.0977L370.998 0L691.572 92.0967L691.669 92.124L691.766 92.1543C724.905 102.649 743.001 130.558 743.001 159.305V485.898L742.999 485.992C740.679 578.53 687.9 662.275 616.624 732.1C545.256 802.015 454.51 858.818 374.262 897.559L371.113 899.079L367.925 897.645C329.657 880.436 288.798 857.833 248.744 831.074C248.665 831.024 248.588 830.971 248.511 830.918C204.646 801.593 161.754 767.285 124.306 729.611C52.7759 657.651 3.69441e-05 572.285 0 485.094V158.594ZM411.501 282.305C441.452 282.305 464.38 292.677 479.749 308.858C495.026 324.943 502.35 346.261 502.13 367.383C501.91 388.5 494.149 409.748 478.841 425.768C463.438 441.886 440.78 452.305 411.635 452.305H245.142L244.994 282.305H411.501ZM260.128 437.305H411.635C436.989 437.305 455.627 428.348 467.996 415.404C480.46 402.361 486.947 384.86 487.131 367.227C487.315 349.598 481.199 332.166 468.873 319.188C456.638 306.307 437.8 297.305 411.501 297.305H260.008L260.128 437.305ZM15 485.094C15 566.402 64.474 648.142 134.944 719.037C168.365 752.66 206.265 783.585 245.29 810.587V516.305H374.239L512.164 717.361L506.632 721.704C459.717 758.53 421.841 781.753 374.577 807.396L371.296 809.178L367.897 807.633C339.78 794.852 310.836 776.542 278.297 754.516C274.867 752.194 273.968 747.531 276.29 744.101C278.612 740.67 283.275 739.772 286.705 742.094C317.809 763.149 344.87 780.268 370.729 792.413C414.052 768.788 449.34 747.09 491.821 714.225L366.339 531.305H260.29V820.738C297.478 845.346 335.293 866.29 370.893 882.521C448.528 844.708 535.328 790.097 603.949 723.507L456.258 508.454L465.533 505.223C539.29 479.527 573.885 407.82 564.761 342.34C560.211 309.689 544.794 278.787 518.055 256.032C491.349 233.306 452.872 218.306 401.51 218.305L181.001 218.952V674.017L168.646 663.521C136.805 636.473 82.3203 571.417 79.0068 486.096L79.001 485.95V166.446L371.133 82.502L664.004 166.447L663.867 485.562C664.541 517.718 651.935 579.887 591.286 640.126C588.347 643.045 583.599 643.029 580.68 640.09C577.761 637.151 577.777 632.402 580.716 629.483C638.386 572.203 649.493 513.979 648.869 485.765L648.867 485.681L648.998 177.75L371.136 98.1064L94.001 177.742V485.647C96.741 554.975 136.015 610.59 166.001 640.635V203.996L401.479 203.305H401.501C455.884 203.305 497.967 219.242 527.775 244.608C557.551 269.947 574.604 304.296 579.617 340.27C589.236 409.299 554.536 485.056 479.585 515.925L614.764 712.756C680.144 646.152 725.89 568.996 728.001 485.681V159.305C728.001 137.068 714.118 114.993 687.296 106.474L371.005 15.6084L55.5771 106.512L55.5098 106.531L55.4414 106.549C33.9443 112.309 15 134.266 15 158.594V485.094Z"/>
                 </svg>
-            </div>
-            
-            <button class="btn-secondary" style="width: 100%; margin-top: 5px;" onclick="refreshCurrentAnalysis()">
-                <i class="fa-solid fa-rotate"></i> Обновить текущий анализ
-            </button>
-        </div>
-
-        <div class="card">
-            <div class="card-title"><i class="fa-solid fa-triangle-exclamation" style="color:#FF9500;"></i> Критические уязвимости</div>
-            <div id="risk-list-container">
-                <p style="color:var(--text-muted); font-size:13px;">Нажмите «Запустить анализ рисков» для генерации матрицы...</p>
-            </div>
-        </div>
-
-        <div class="card">
-            <div class="card-title"><i class="fa-solid fa-book-bookmark"></i> Законы к соблюдению (Регуляторика 2026)</div>
-            <div id="laws-list-container" style="font-size: 14px; line-height: 1.5; color: var(--text-main);">
-                <p style="color:var(--text-muted); font-size:13px;">Список нормативных актов пуст.</p>
-            </div>
-        </div>
-    </div>
-
-    <div id="screen-chat" class="screen">
-        <div class="chat-container">
-            <div class="chat-messages" id="chat-messages-box">
-                <div class="chat-msg assistant">
-                    Приветствую! Я ваш корпоративный ИИ-юрист RuleGuard.
-                    <br><br>
-                    Вы можете задать мне любой правовой вопрос, отправить <b>договор (.pdf, .docx, .txt)</b> на экспресс-аудит уязвимостей или наговорить вопрос <b>голосом</b>.
+                <h2 style="margin: 0 0 4px 0;">RuleGuard AI</h2>
+                <p style="color: var(--text-muted); margin: 0; font-size: 14px;">Ежедневный юридический мониторинг</p>
+                <div>
+                    <span class="status-badge" id="radar-status-badge"><i class="fa-solid fa-circle-check"></i> Мониторинг активен</span>
                 </div>
             </div>
             
-            <div class="chat-input-bar">
-                <input type="file" id="chat-file-input" class="hidden-file-input" accept=".pdf,.docx,.txt" onchange="handleFileSelected()">
+            <button class="btn-submit" id="refresh-analysis-btn" style="margin-bottom: 16px;" onclick="triggerFastAnalysis()">
+                <div class="spinner" id="refresh-spinner"></div>
+                <i class="fa-solid fa-rotate" id="refresh-icon"></i> <span id="refresh-btn-text">Обновить текущий анализ</span>
+            </button>
+            
+            <div class="card" id="active-report-card">
+                <h4 style="margin: 0 0 4px 0;"><i class="fa-solid fa-brain" style="color: #30D158;"></i> Последний анализ:</h4>
+                <div id="ai-live-output" style="font-size: 14px; color: var(--text-muted);">
+                    Загрузка актуального отчета из базы данных...
+                </div>
+            </div>
+
+            <div class="card" id="webapp-chat-card">
+                <h4 style="margin: 0 0 8px 0;"><i class="fa-solid fa-comments" style="color: #30D158;"></i> Обсуждение и аудит файлов:</h4>
+                <div class="chat-container" id="chat-messages-box">
+                    <div class="chat-msg assistant">Задайте любой уточняющий вопрос или прикрепите документ (PDF/DOCX) на экспресс-аудит рисков прямо здесь.</div>
+                </div>
+                <div class="chat-input-row">
+                    <input type="file" id="chat-file-input" accept=".pdf,.docx" style="display:none;" onchange="handleFileSelected()">
+                    
+                    <button class="chat-action-btn" id="attach-btn" onclick="document.getElementById('chat-file-input').click()">
+                        <i class="fa-solid fa-paperclip"></i>
+                    </button>
+                    
+                    <button class="chat-action-btn" id="mic-btn" onclick="toggleVoiceRecording()">
+                        <i class="fa-solid fa-microphone"></i>
+                    </button>
+                    
+                    <input type="text" id="chat-user-input" placeholder="Вопрос юристу..." onkeydown="if(event.key==='Enter') sendChatMessage()">
+                    
+                    <button class="chat-send-btn" id="chat-send-btn" onclick="sendChatMessage()">
+                        <i class="fa-solid fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div id="screen-profile" class="app-screen">
+            <div class="card">
+                <h3 style="margin: 0 0 4px 0;">Параметры бизнеса</h3>
+                <p style="color: var(--text-muted); font-size: 13px; margin: 0 0 10px 0;">Настройте профиль для адаптации ИИ</p>
                 
-                <button class="chat-action-btn" onclick="triggerFileSelect()">
-                    <i class="fa-solid fa-paperclip"></i>
-                </button>
-                
-                <input type="text" id="chat-text-input" placeholder="Задать вопрос юристу..." onkeydown="if(event.key==='Enter') sendTextMessage()">
-                
-                <button class="chat-action-btn" id="voice-record-btn" onclick="toggleVoiceRecording()">
-                    <i class="fa-solid fa-microphone"></i>
-                </button>
-                
-                <button class="chat-action-btn" style="color: var(--accent-color);" onclick="sendTextMessage()">
-                    <i class="fa-solid fa-paper-plane"></i>
+                <div class="form-group">
+                    <label>Страна / Country</label>
+                    <select id="country" onchange="updateBusinessForms()">
+                        <option value="USA">United States (USA)</option>
+                        <option value="Russia">Россия (Russia)</option>
+                        <option value="Other">Другая страна / Other</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Штат, область, город / Location</label>
+                    <input type="text" id="location" placeholder="e.g. Florida, Miami">
+                </div>
+
+                <div class="form-group">
+                    <label>Форма компании / Legal Entity</label>
+                    <select id="biz_form"></select>
+                </div>
+
+                <div class="form-group">
+                    <label>Суть и специфика деятельности</label>
+                    <textarea id="description" placeholder="Опишите продукт, сотрудников..."></textarea>
+                </div>
+
+                <button class="btn-submit" id="submit-btn" onclick="saveProfileData()">
+                    <i class="fa-solid fa-bolt"></i> <span id="btn-text">Запустить анализ рисков</span>
                 </button>
             </div>
         </div>
+
+        <div id="screen-archive" class="app-screen">
+            <div class="card">
+                <h3 style="margin: 0 0 4px 0;">Архив отчетов</h3>
+                <p style="color: var(--text-muted); font-size: 13px; margin: 0;">Облачная история проверок из PostgreSQL</p>
+            </div>
+            <div id="archive-list">
+                <div class="card" style="opacity: 0.6; text-align: center; padding: 40px 20px;">
+                    <i class="fa-regular fa-folder-open" style="font-size: 32px; color: var(--text-muted); margin-bottom: 10px;"></i>
+                    <p style="margin: 0; font-size: 14px;">Архив пуст.</p>
+                </div>
+            </div>
+        </div>
+
+        <div id="screen-settings" class="app-screen">
+            <div class="card">
+                <h3>Настройки системы</h3>
+                
+                <div class="form-group">
+                    <label><i class="fa-regular fa-clock"></i> Время ежедневного пуша спокойствия</label>
+                    <input type="time" id="push_time" value="09:00" onchange="updatePushTimeOnServer()">
+                </div>
+                
+                <hr style="border: 0; border-top: 1px solid var(--card-border); margin: 8px 0;">
+                
+                <div class="theme-switch-box">
+                    <label><i class="fa-regular fa-moon"></i> Светлая / Темная тема</label>
+                    <button class="btn-submit" style="padding: 6px 12px; font-size: 13px; width: auto; margin: 0;" onclick="toggleTheme()">Сменить</button>
+                </div>
+            </div>
+        </div>
+
     </div>
 
-    <div class="nav-bar">
-        <div class="nav-item active" id="tab-profile" onclick="switchScreen('screen-profile', this)">
-            <i class="fa-solid fa-id-card"></i>
-            <span>Профиль</span>
+    <div class="tab-bar">
+        <div class="tab-item active" id="tab-radar" onclick="switchScreen('screen-radar', this)">
+            <i class="fa-solid fa-shield-halved"></i> Главная
         </div>
-        <div class="nav-item" id="tab-radar" onclick="switchScreen('screen-radar', this)">
-            <i class="fa-solid fa-chart-radar"></i>
-            <span>Радар рисков</span>
+        <div class="tab-item" id="tab-profile" onclick="switchScreen('screen-profile', this)">
+            <i class="fa-solid fa-briefcase"></i> Бизнес
         </div>
-        <div class="nav-item" id="tab-chat" onclick="switchScreen('screen-chat', this)">
-            <i class="fa-solid fa-gavel"></i>
-            <span>Аудит & Чат</span>
+        <div class="tab-item" id="tab-archive" onclick="switchScreen('screen-archive', this)">
+            <i class="fa-solid fa-box-archive"></i> Архив
+        </div>
+        <div class="tab-item" id="tab-settings" onclick="switchScreen('screen-settings', this)">
+            <i class="fa-solid fa-gear"></i> Опции
         </div>
     </div>
 
     <script>
-        const BACKEND_URL = "https://ruleguard.onrender.com";
-        
-        let tg = window.Telegram?.WebApp;
-        if (tg) {
-            tg.expand();
-            tg.ready();
-        }
+        const BACKEND_URL = "https://ruleguard-backend.onrender.com";
+        const tg = window.Telegram.WebApp;
+        tg.expand();
 
-        let userTelegramId = tg?.initDataUnsafe?.user?.id || 999999;
-        let userTelegramName = tg?.initDataUnsafe?.user?.username || "LocalUser";
+        const userTelegramId = tg.initDataUnsafe?.user?.id || 542709522; 
+        const userTelegramName = tg.initDataUnsafe?.user?.first_name || "Предприниматель";
 
         let mediaRecorder = null;
         let audioChunks = [];
-        let isRecording = false;
 
-        const countryForms = {
-            "RU": ["ООО", "ИП", "АО", "Самозанятый"],
-            "AE": ["Freezone Company (FZCO/FZ-LLC)", "Mainland LLC", "Sole Establishment"],
-            "US": ["LLC (Wyoming/Delaware)", "C-Corp (Delaware)", "Partnership"],
-            "KZ": ["ТОО (Товарищество)", "ИП (Индивидуальный предприниматель)", "Участник МФЦА (AIFC)"]
-        };
-
-        function updateBusinessForms() {
-            const countrySelect = document.getElementById('biz-country');
-            const formSelect = document.getElementById('biz-form');
-            const selected = countrySelect.value;
+        function switchScreen(screenId, tabElement) {
+            document.querySelectorAll('.app-screen').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
             
-            formSelect.innerHTML = "";
-            if (countryForms[selected]) {
-                countryForms[selected].forEach(f => {
-                    let opt = document.createElement('option');
-                    opt.value = f;
-                    opt.innerText = f;
-                    formSelect.appendChild(opt);
-                });
-            }
-        }
-
-        function toggleTheme() {
-            const current = document.body.getAttribute('data-theme');
-            const next = current === 'light' ? 'dark' : 'light';
-            document.body.setAttribute('data-theme', next);
-            localStorage.setItem('rg-theme', next);
+            const targetScreen = document.getElementById(screenId);
+            if (targetScreen) targetScreen.classList.add('active');
+            if (tabElement) tabElement.classList.add('active');
         }
 
         function loadTheme() {
-            const saved = localStorage.getItem('rg-theme') || 'dark';
-            document.body.setAttribute('data-theme', saved);
-        }
-
-        function switchScreen(screenId, tabEl) {
-            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-            document.querySelectorAll('.nav-item').forEach(t => t.classList.remove('active'));
-            
-            document.getElementById(screenId).classList.add('active');
-            tabEl.classList.add('active');
+            const cachedTheme = localStorage.getItem('ruleguard_theme');
+            if (cachedTheme === 'light') {
+                document.body.setAttribute('data-theme', 'light');
+                tg.setHeaderColor('#F2F2F7');
+            } else {
+                document.body.removeAttribute('data-theme');
+                tg.setHeaderColor('#0A0A0C');
+            }
         }
 
         function loadDataFromServer() {
-            fetch(`${BACKEND_URL}/api/get-analysis?user_id=${userTelegramId}`)
+            const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            fetch(`${BACKEND_URL}/api/history/${userTelegramId}?tz=${encodeURIComponent(userTimeZone)}`)
             .then(res => res.json())
             .then(data => {
-                if(data.status === 'success' && data.analysis) {
-                    const a = data.analysis;
-                    
-                    if(a.country) document.getElementById('biz-country').value = a.country;
-                    updateBusinessForms();
-                    if(a.legal_form) document.getElementById('biz-form').value = a.legal_form;
-                    if(a.location) document.getElementById('biz-location').value = a.location;
-                    if(a.business_details) document.getElementById('biz-description').value = a.business_details;
-                    if(a.push_time) document.getElementById('push-time').value = a.push_time;
-
-                    renderRadarChart(a.scores);
-                    renderRisks(a.risks);
-                    renderLaws(a.laws_to_follow);
-                }
-            })
-            .catch(err => console.error("Ошибка загрузки данных профиля:", err));
-        }
-
-        function renderRadarChart(scores) {
-            if(!scores) return;
-            const keys = ["tax", "sanctions", "personal_data", "corporate", "labor"];
-            const center = 100;
-            const maxRadius = 80;
-            
-            const angles = [
-                -Math.PI / 2,
-                -Math.PI / 2 + (2 * Math.PI / 5),
-                -Math.PI / 2 + (4 * Math.PI / 5),
-                -Math.PI / 2 + (6 * Math.PI / 5),
-                -Math.PI / 2 + (8 * Math.PI / 5)
-            ];
-
-            let points = [];
-            for (let i = 0; i < 5; i++) {
-                let score = scores[keys[i]] || 50; 
-                let radius = (score / 100) * maxRadius;
-                let x = center + radius * Math.cos(angles[i]);
-                let y = center + radius * Math.sin(angles[i]);
-                points.push(`${x},${y}`);
-            }
-
-            document.getElementById('radar-poly').setAttribute('points', points.join(' '));
-        }
-
-        function renderRisks(risks) {
-            const container = document.getElementById('risk-list-container');
-            if(!risks || risks.length === 0) {
-                container.innerHTML = `<p style="color:var(--text-muted); font-size:13px;">Уязвимостей не обнаружено.</p>`;
-                return;
-            }
-            container.innerHTML = "";
-            risks.forEach(r => {
-                let badgeClass = "badge-low";
-                if(r.level === 'Высокий' || r.level === 'Критический') badgeClass = "badge-high";
-                if(r.level === 'Средний') badgeClass = "badge-med";
-
-                container.innerHTML += `
-                    <div class="risk-item">
-                        <div style="max-width: 75%;">
-                            <div style="font-size:14px; font-weight:600;">${r.title}</div>
-                            <div style="font-size:12px; color:var(--text-muted); margin-top:3px;">${r.description}</div>
-                        </div>
-                        <span class="risk-badge ${badgeClass}">${r.level}</span>
-                    </div>
-                `;
-            });
-        }
-
-        function renderLaws(laws) {
-            const container = document.getElementById('laws-list-container');
-            if(!laws || laws.length === 0) {
-                container.innerHTML = `<p style="color:var(--text-muted); font-size:13px;">Список пуст.</p>`;
-                return;
-            }
-            container.innerHTML = "<ul style='padding-left:20px;'>";
-            laws.forEach(l => {
-                container.innerHTML += `<li style="margin-bottom:8px;">${l}</li>`;
-            });
-            container.innerHTML += "</ul>";
-        }
-
-        function refreshCurrentAnalysis() {
-            fetch(`${BACKEND_URL}/api/get-analysis?user_id=${userTelegramId}`)
-            .then(res => res.json())
-            .then(data => {
-                if(data.status === 'success' && data.analysis) {
-                    const a = data.analysis;
-                    renderRadarChart(a.scores);
-                    renderRisks(a.risks);
-                    renderLaws(a.laws_to_follow);
-                    alert("Данные анализа успешно синхронизированы!");
-                } else {
-                    alert("На сервере еще нет готового анализа. Запустите его во вкладке Профиль.");
+                if (data.status === 'success') {
+                    if (data.push_time) {
+                        document.getElementById('push_time').value = data.push_time;
+                    }
+                    if (data.history && data.history.length > 0) {
+                        const lastReport = data.history[0].report_text;
+                        document.getElementById('ai-live-output').innerHTML = `<div class="analysis-output">${lastReport}</div>`;
+                        renderArchive(data.history);
+                    } else {
+                        document.getElementById('ai-live-output').innerText = "Здесь отобразится информация после заполнения параметров бизнеса.";
+                    }
                 }
             })
             .catch(err => {
-                console.error(err);
-                alert("Не удалось обновить анализ рисков.");
+                console.error("Ошибка загрузки данных из БД:", err);
+                document.getElementById('ai-live-output').innerText = "Не удалось загрузить данные из облака.";
             });
+
+            loadChatHistoryFromServer();
         }
 
-        function sendTextMessage() {
-            const input = document.getElementById('chat-text-input');
+        function loadChatHistoryFromServer() {
+            fetch(`${BACKEND_URL}/api/chat/history/${userTelegramId}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success' && data.history.length > 0) {
+                    const box = document.getElementById('chat-messages-box');
+                    box.innerHTML = '';
+                    data.history.forEach(m => {
+                        box.innerHTML += `<div class="chat-msg ${m.role}">${m.message_text}</div>`;
+                    });
+                    box.scrollTop = box.scrollHeight;
+                }
+            }).catch(e => console.error("Ошибка загрузки истории чата:", e));
+        }
+
+        function sendChatMessage() {
+            const input = document.getElementById('chat-user-input');
             const text = input.value.trim();
-            if(!text) return;
+            if (!text) return;
 
             const box = document.getElementById('chat-messages-box');
             box.innerHTML += `<div class="chat-msg user">${text}</div>`;
-            input.value = "";
             box.scrollTop = box.scrollHeight;
+            input.value = '';
 
-            const loadingId = "loader-" + Date.now();
-            box.innerHTML += `<div class="chat-msg assistant" id="${loadingId}"><i class="fa-solid fa-spinner fa-spin"></i> Думаю над решением вопроса...</div>`;
-            box.scrollTop = box.scrollHeight;
+            const btn = document.getElementById('chat-send-btn');
+            btn.disabled = true;
 
             fetch(`${BACKEND_URL}/api/chat/message`, {
                 method: 'POST',
@@ -664,26 +472,23 @@
             })
             .then(res => res.json())
             .then(data => {
-                document.getElementById(loadingId)?.remove();
-                if(data.status === 'success') {
+                if (data.status === 'success') {
                     box.innerHTML += `<div class="chat-msg assistant">${data.reply}</div>`;
                 } else {
-                    box.innerHTML += `<div class="chat-msg assistant">⚠️ Ошибка ИИ: ${data.message}</div>`;
+                    box.innerHTML += `<div class="chat-msg assistant">⚠️ Ошибка: ${data.message}</div>`;
                 }
                 box.scrollTop = box.scrollHeight;
             })
             .catch(err => {
                 console.error(err);
-                document.getElementById(loadingId)?.remove();
-                box.innerHTML += `<div class="chat-msg assistant">⚠️ Не удалось получить ответ. Проверьте сеть.</div>`;
-                box.scrollTop = box.scrollHeight;
+                box.innerHTML += `<div class="chat-msg assistant">⚠️ Ошибка соединения с сервером.</div>`;
+            })
+            .finally(() => {
+                btn.disabled = false;
             });
         }
 
-        function triggerFileSelect() {
-            document.getElementById('chat-file-input').click();
-        }
-
+        // Обработка загрузки документов
         function handleFileSelected() {
             const fileInput = document.getElementById('chat-file-input');
             if (fileInput.files.length === 0) return;
@@ -696,9 +501,10 @@
             box.scrollTop = box.scrollHeight;
 
             const formData = new FormData();
-            formData.append('file', file); 
+            formData.append('user_id', userTelegramId);
+            formData.append('file', file);
 
-            fetch(`${BACKEND_URL}/api/chat/upload-doc?user_id=${userTelegramId}`, {
+            fetch(`${BACKEND_URL}/api/chat/upload-doc`, {
                 method: 'POST',
                 body: formData
             })
@@ -723,42 +529,39 @@
             });
         }
 
+        // Обработка записи аудио сообщений
         function toggleVoiceRecording() {
-            const btn = document.getElementById('voice-record-btn');
+            const micBtn = document.getElementById('mic-btn');
             
-            if (!isRecording) {
-                navigator.mediaDevices.getUserMedia({ audio: true })
-                .then(stream => {
-                    isRecording = true;
-                    btn.classList.add('recording');
-                    btn.innerHTML = `<i class="fa-solid fa-circle-dot"></i>`;
-                    
-                    audioChunks = [];
-                    mediaRecorder = new MediaRecorder(stream);
-                    mediaRecorder.ondataavailable = event => {
-                        audioChunks.push(event.data);
-                    };
-                    mediaRecorder.onstop = () => {
-                        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-                        sendVoiceBlobToServer(audioBlob);
-                        stream.getTracks().forEach(track => track.stop());
-                    };
-                    
-                    mediaRecorder.start();
-                })
-                .catch(err => {
-                    console.error("Доступ к микрофону заблокирован:", err);
-                    alert("Пожалуйста, разрешите доступ к микрофону.");
-                });
-            } else {
-                isRecording = false;
-                btn.classList.remove('recording');
-                btn.innerHTML = `<i class="fa-solid fa-microphone"></i>`;
-                
-                if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-                    mediaRecorder.stop();
-                }
+            if (mediaRecorder && mediaRecorder.state === "recording") {
+                mediaRecorder.stop();
+                micBtn.classList.remove('recording');
+                micBtn.innerHTML = `<i class="fa-solid fa-microphone"></i>`;
+                return;
             }
+
+            navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(stream => {
+                audioChunks = [];
+                mediaRecorder = new MediaRecorder(stream);
+                
+                mediaRecorder.ondataavailable = event => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    sendVoiceBlobToServer(audioBlob);
+                };
+
+                mediaRecorder.start();
+                micBtn.classList.add('recording');
+                micBtn.innerHTML = `<i class="fa-solid fa-stop"></i>`;
+            })
+            .catch(err => {
+                console.error("Нет доступа к микрофону:", err);
+                alert("Ошибка: Предоставьте приложению доступ к микрофону в настройках.");
+            });
         }
 
         function sendVoiceBlobToServer(blob) {
@@ -768,9 +571,10 @@
             box.scrollTop = box.scrollHeight;
 
             const formData = new FormData();
-            formData.append('file', blob, 'voice.wav'); 
+            formData.append('user_id', userTelegramId);
+            formData.append('file', blob, 'voice.wav');
 
-            fetch(`${BACKEND_URL}/api/chat/upload-voice?user_id=${userTelegramId}`, {
+            fetch(`${BACKEND_URL}/api/chat/upload-voice`, {
                 method: 'POST',
                 body: formData
             })
@@ -792,18 +596,126 @@
             });
         }
 
-        function runAIAnalysis() {
-            const btn = document.getElementById('btn-save-analysis');
-            const btnText = document.getElementById('btn-analysis-text');
+        function triggerFastAnalysis() {
+            const btn = document.getElementById('refresh-analysis-btn');
+            const spinner = document.getElementById('refresh-spinner');
+            const icon = document.getElementById('refresh-icon');
+            const text = document.getElementById('refresh-btn-text');
             
-            const country = document.getElementById('biz-country').value;
-            const bizForm = document.getElementById('biz-form').value;
-            const location = document.getElementById('biz-location').value.trim();
-            const description = document.getElementById('biz-description').value.trim();
-            const pushTime = document.getElementById('push-time').value;
-
             btn.disabled = true;
-            btnText.innerText = "Анализирую риски...";
+            icon.style.display = 'none';
+            spinner.style.display = 'block';
+            text.innerText = "ИИ перепроверяет риски 2026...";
+
+            fetch(`${BACKEND_URL}/api/reanalyze/${userTelegramId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    loadDataFromServer();
+                } else {
+                    alert("Ошибка ИИ: " + data.message);
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert("Не удалось связаться с сервером Render.");
+            })
+            .finally(() => {
+                btn.disabled = false;
+                spinner.style.display = 'none';
+                icon.style.display = 'inline-block';
+                text.innerText = "Обновить текущий анализ";
+            });
+        }
+
+        function renderArchive(historyArray) {
+            const archiveList = document.getElementById('archive-list');
+            archiveList.innerHTML = '';
+            historyArray.forEach(item => {
+                archiveList.innerHTML += `
+                    <div class="card">
+                        <h5 style="margin:0; color:var(--accent-color);">📋 Отчет от ${item.created_at}</h5>
+                        <p style="margin: 4px 0; font-size:11px; color:var(--text-muted)">Вводные: ${item.input_text}</p>
+                        <div style="font-size:13px; line-height:1.4; max-height: 150px; overflow-y: auto; color:var(--text-main); white-space: pre-line;">
+                            ${item.report_text}
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function updatePushTimeOnServer() {
+            const pushTime = document.getElementById('push_time').value;
+            fetch(`${BACKEND_URL}/api/analyze`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    user_id: userTelegramId,
+                    username: userTelegramName,
+                    push_time: pushTime,
+                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone 
+                })
+            }).catch(e => console.error(e));
+        }
+
+        function toggleTheme() {
+            const currentTheme = document.body.getAttribute('data-theme');
+            if (currentTheme === 'light') {
+                document.body.removeAttribute('data-theme');
+                localStorage.setItem('ruleguard_theme', 'dark');
+                tg.setHeaderColor('#0A0A0C');
+            } else {
+                document.body.setAttribute('data-theme', 'light');
+                localStorage.setItem('ruleguard_theme', 'light');
+                tg.setHeaderColor('#F2F2F7');
+            }
+        }
+
+        const forms = {
+            USA: [
+                { value: 'LLC', text: 'LLC (Limited Liability Company)' },
+                { value: 'C-Corp', text: 'C-Corporation' },
+                { value: 'Sole Proprietorship', text: 'Sole Proprietorship' }
+            ],
+            Russia: [
+                { value: 'ИП', text: 'ИП (Индивидуальный предприниматель)' },
+                { value: 'ООО', text: 'ООО (Общество с огр. ответственностью)' },
+                { value: 'Самозанятый', text: 'Самозанятость (НПД)' }
+            ],
+            Other: [
+                { value: 'Individual', text: 'Individual Entrepreneur' },
+                { value: 'Corporate', text: 'Corporate Entity' }
+            ]
+        };
+
+        function updateBusinessForms() {
+            const country = document.getElementById('country').value;
+            const formSelect = document.getElementById('biz_form');
+            formSelect.innerHTML = '';
+            forms[country].forEach(item => {
+                const option = document.createElement('option');
+                option.value = item.value;
+                option.text = item.text;
+                formSelect.appendChild(option);
+            });
+        }
+
+        function saveProfileData() {
+            const country = document.getElementById('country').value;
+            const location = document.getElementById('location').value.trim();
+            const bizForm = document.getElementById('biz_form').value;
+            const description = document.getElementById('description').value.trim();
+            const pushTime = document.getElementById('push_time').value;
+
+            if (!location) { return alert('Укажите локацию!'); }
+
+            const btn = document.getElementById('submit-btn');
+            const btnText = document.getElementById('btn-text');
+            btn.disabled = true;
+            btnText.innerText = "ИИ сканирует законы 2026...";
 
             const payload = {
                 user_id: userTelegramId,
