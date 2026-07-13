@@ -489,22 +489,23 @@
         }
 
         // Обработка загрузки документов
-        function handleFileSelected() {
+        ffunction handleFileSelected() {
             const fileInput = document.getElementById('chat-file-input');
             if (fileInput.files.length === 0) return;
-
+        
             const file = fileInput.files[0];
             const box = document.getElementById('chat-messages-box');
             
             box.innerHTML += `<div class="chat-msg user"><i class="fa-solid fa-file-contract"></i> Отправлен файл: <b>${file.name}</b></div>`;
             box.innerHTML += `<div class="chat-msg assistant" id="file-loading-msg">📥 Читаю и анализирую ваш договор... Пожалуйста, подождите.</div>`;
             box.scrollTop = box.scrollHeight;
-
+        
             const formData = new FormData();
-            formData.append('user_id', userTelegramId);
-            formData.append('file', file);
-
-            fetch(`${BACKEND_URL}/api/chat/upload-doc`, {
+            // Передаем ТОЛЬКО файл бинарником в форму
+            formData.append('file', file); 
+        
+            // ВАЖНО: передаем user_id в URL (?user_id=...), а читаем строго data.reply
+            fetch(`${BACKEND_URL}/api/chat/upload-doc?user_id=${userTelegramId}`, {
                 method: 'POST',
                 body: formData
             })
