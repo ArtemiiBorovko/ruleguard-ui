@@ -39,7 +39,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 2. РАБОТА С БАЗОЙ ДАННЫХ (Переведено на безопасный engine.begin)
+# 2. РАБОТА С БАЗОЙ ДАННЫХ
 def init_db():
     with engine.begin() as conn:
         conn.execute(text('''
@@ -156,6 +156,32 @@ def get_recent_chat_history(user_id, limit=6):
         print(f"Ошибка получения истории чата: {e}")
         return []
 
+# 3. УМНЫЙ РОУТЕР GROQ (Оптимизация токенов и каскадный фоллбэк)
+def safe_groq_request(messages, temperature=0.3, max_tokens=None, is_dispatcher=False):
+    # Диспетчеру не нужна тяжелая модель 70b, используем быструю и экономную
+    if is_dispatcher:
+        primary_model = "llama-3.1-8b-instant"
+        fallback_model = "llama-3.1-8b-instant"
+    else:
+        primary_model = "llama-3.3-70b-versatile"
+        fallback_model = "llama-3.1-8b-instant" # Резерв на случай 429 ошибки
+        
+    kwargs = {"model": primary_model, "messages": messages, "temperature": temperature}
+    if max_tokens: kwargs["max_tokens"] = max_tokens
+        
+    try:
+        completion = groq_client.chat.completions.create(**kwargs)
+        return completion.choices[0].message.content
+    except Exception as e:
+        # Если словили 429, прозрачно для пользователя переключаемся на легкую модель
+        if "429" in str(e) or "rate_limit" in str(e):
+            print(f"⚠️ Лимит {primary_model} исчерпан. Экстренный переход на {fallback_model}...")
+            kwargs["model"] = fallback_model
+            completion = groq_client.chat.completions.create(**kwargs)
+            return completion.choices[0].message.content
+        else:
+            raise e
+
 def check_if_search_needed(history, current_input):
     system_prompt = (
         "Ты — технический диспетчер системы RuleGuard. Твоя задача — определить, "
@@ -171,18 +197,13 @@ def check_if_search_needed(history, current_input):
             messages.append(msg)
         messages.append({"role": "user", "content": f"Вопрос пользователя: {current_input}"})
         
-        completion = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=messages,
-            temperature=0.0,
-            max_tokens=5
-        )
-        decision = completion.choices[0].message.content.strip().upper()
-        return "SEARCH" in decision
-    except Exception as e:
+        # Используем диспетчера для экономии
+        decision = safe_groq_request(messages, temperature=0.0, max_tokens=5, is_dispatcher=True)
+        return "SEARCH" in decision.strip().upper()
+    except Exception:
         return True
 
-# 3. ПОИСК В ИНТЕРНЕТЕ
+# 4. ПОИСК В ИНТЕРНЕТЕ
 def search_internet(query):
     clean_query = query.lower()
     for trash in ["новый пользователь без настроенного профиля.", "вопрос:", "юридические риски штрафы законы актуальное", 
@@ -237,7 +258,7 @@ def search_internet(query):
         print(f"❌ [Tavily] Ошибка API: {e}")
     return "Не удалось найти свежие нормативные данные в сети."
 
-# 4. ЯДРО АНАЛИЗА БИЗНЕСА И ДИАЛОГОВ
+# 5. ЯДРО АНАЛИЗА БИЗНЕСА И ДИАЛОГОВ
 def generate_report_logic(user_id, current_input_text):
     web_data = search_internet(current_input_text)
 
@@ -261,22 +282,18 @@ def generate_report_logic(user_id, current_input_text):
         f"Вводные данные для экспресс-анализа: {current_input_text}"
     )
     
-    completion = groq_client.chat.completions.create(
-        model="llama-3.3-70b-versatile", 
-        messages=[
-            {"role": "system", "content": system_instruction},
-            {"role": "user", "content": full_prompt}
-        ],
-        temperature=0.25
-    )
-    bot_response = completion.choices[0].message.content
+    messages = [
+        {"role": "system", "content": system_instruction},
+        {"role": "user", "content": full_prompt}
+    ]
     
+    bot_response = safe_groq_request(messages, temperature=0.25)
     save_report_to_archive(user_id, current_input_text, bot_response)
     return bot_response
 
 def get_legal_chat_reply(user_id, current_input_text):
     user_context = get_user_context(user_id)
-    history_messages = get_recent_chat_history(user_id, limit=6)
+    history_messages = get_recent_chat_history(user_id, limit=4) # Уменьшили историю с 6 до 4 для экономии
     need_search = check_if_search_needed(history_messages, current_input_text)
     
     web_context = ""
@@ -304,24 +321,18 @@ def get_legal_chat_reply(user_id, current_input_text):
         messages_payload.append(msg)
     messages_payload.append({"role": "user", "content": current_input_text})
 
-    completion = groq_client.chat.completions.create(
-        model="llama-3.3-70b-versatile", 
-        messages=messages_payload,
-        temperature=0.3
-    )
-    bot_response = completion.choices[0].message.content
+    bot_response = safe_groq_request(messages_payload, temperature=0.3)
     
     save_chat_message(user_id, "user", current_input_text)
     save_chat_message(user_id, "assistant", bot_response)
     return bot_response
 
-# Пуленепробиваемая функция отправки сообщений с Markdown-fallback
 def safe_reply_to(message, text_content):
     try:
         bot.reply_to(message, text_content, parse_mode='Markdown')
     except Exception:
         try:
-            bot.reply_to(message, text_content)  # Если Markdown сломался, отправляем как обычный текст
+            bot.reply_to(message, text_content)
         except Exception as e:
             print(f"Критическая ошибка отправки сообщения: {e}")
 
@@ -332,7 +343,7 @@ def run_legal_analysis(message, current_input_text):
         bot_response = get_legal_chat_reply(user_id, current_input_text)
         safe_reply_to(message, bot_response)
     except Exception as e:
-        safe_reply_to(message, f"⚠️ Ошибка ИИ Groq: {str(e)}")
+        safe_reply_to(message, f"⚠️ Системная ошибка: {str(e)}")
 
 # =====================================================================
 # СЕРВЕРНЫЕ ЭНДПОИНТЫ ДЛЯ МИНИ-ПРИЛОЖЕНИЯ (WEBAPP)
@@ -341,7 +352,6 @@ def run_legal_analysis(message, current_input_text):
 def read_root():
     return {"status": "online"}
 
-# Эндпоинт Вебхука для Telegram (Вместо нестабильного фонового Polling)
 @app.post("/api/telegram-webhook")
 async def telegram_webhook(request: Request):
     try:
@@ -370,7 +380,6 @@ async def handle_webapp_chat_message(request: Request):
         text_msg = data.get('text', '').strip()
         if not text_msg: return {"status": "error", "message": "Empty text"}
         reply = get_legal_chat_reply(user_id, text_msg)
-        # ИСПРАВЛЕНО: возвращаем и reply, и report, чтобы фронтенд точно прочитал ответ
         return {"status": "success", "reply": reply, "report": reply}
     except Exception as e:
         return {"status": "error", "message": str(e)}
@@ -468,23 +477,18 @@ async def handle_webapp_doc(user_id: int, file: UploadFile = File(...)):
             "### 🔎 Общий вердикт по документу\n\n### ⚠️ Кабальные условия и скрытые риски\n\n### 🛠️ Что потребовать изменить / Протокол разногласий"
         )
         user_context = get_user_context(user_id)
+        messages = [
+            {"role": "system", "content": system_instruction},
+            {"role": "user", "content": f"Контекст компании клиента: {user_context}\n\nТЕКСТ ДОГОВОРА:\n{text_content}"}
+        ]
         
-        completion = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile", 
-            messages=[
-                {"role": "system", "content": system_instruction},
-                {"role": "user", "content": f"Контекст компании клиента: {user_context}\n\nТЕКСТ ДОГОВОРА:\n{text_content}"}
-            ],
-            temperature=0.2
-        )
-        report = completion.choices[0].message.content
+        report = safe_groq_request(messages, temperature=0.2)
         
         try: 
             bot.send_message(user_id, f"📋 **Результаты экспресс-аудита документа (из приложения):**\n\n{report}", parse_mode='Markdown')
         except Exception:
             bot.send_message(user_id, f"📋 Результаты экспресс-аудита документа (из приложения):\n\n{report}")
         
-        # ИСПРАВЛЕНО: возвращаем и report, и reply для стабильности фронта
         return {"status": "success", "report": report, "reply": report}
     except Exception as e:
         return {"status": "error", "message": str(e)}
@@ -509,7 +513,6 @@ async def handle_webapp_voice(user_id: int, file: UploadFile = File(...)):
             return {"status": "error", "message": "Не удалось распознать речь."}
             
         reply = get_legal_chat_reply(user_id, user_text)
-        # ИСПРАВЛЕНО: возвращаем оба ключа фронту для исключения undefined
         return {"status": "success", "user_text": user_text, "reply": reply, "report": reply}
     except Exception as e:
         return {"status": "error", "message": str(e)}
@@ -552,18 +555,16 @@ def send_daily_push_notifications():
                 search_query = f"{country or ''} {location or ''} {legal_form or ''} {business or ''}"
                 web_data = search_internet(search_query)
                 
-                completion = groq_client.chat.completions.create(
-                    model="llama-3.3-70b-versatile", 
-                    messages=[
-                        {"role": "system", "content": "Ты — ИИ-юрист RuleGuard. Напиши очень краткую сводку законов на сегодня (2-3 предложения)."},
-                        {"role": "user", "content": f"Бизнес: {business}, Локация: {location}. Данные: {web_data}"}
-                    ],
-                    temperature=0.4
-                )
+                messages = [
+                    {"role": "system", "content": "Ты — ИИ-юрист RuleGuard. Напиши очень краткую сводку законов на сегодня (2-3 предложения)."},
+                    {"role": "user", "content": f"Бизнес: {business}, Локация: {location}. Данные: {web_data}"}
+                ]
+                bot_response = safe_groq_request(messages, temperature=0.4)
+                
                 try:
-                    bot.send_message(user_id, f"🛡️ <b>Ежедневный RuleGuard Радар</b>\n\n{completion.choices[0].message.content}", parse_mode="HTML")
+                    bot.send_message(user_id, f"🛡️ <b>Ежедневный RuleGuard Радар</b>\n\n{bot_response}", parse_mode="HTML")
                 except Exception:
-                    bot.send_message(user_id, f"🛡️ Ежедневный RuleGuard Радар\n\n{completion.choices[0].message.content}")
+                    bot.send_message(user_id, f"🛡️ Ежедневный RuleGuard Радар\n\n{bot_response}")
     except Exception as e:
         print(f"Ошибка планировщика пушей: {e}")
 
@@ -675,16 +676,13 @@ def handle_document(message):
             "Структура:\n### 🔎 Вердикт\n### ⚠️ Риски\n### 🛠️ Что изменить"
         )
         user_context = get_user_context(message.from_user.id)
+        messages = [
+            {"role": "system", "content": system_instruction},
+            {"role": "user", "content": f"Контекст компании: {user_context}\n\nТЕКСТ:\n{text_content}"}
+        ]
         
-        completion = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile", 
-            messages=[
-                {"role": "system", "content": system_instruction},
-                {"role": "user", "content": f"Контекст компании: {user_context}\n\nТЕКСТ:\n{text_content}"}
-            ],
-            temperature=0.2
-        )
-        safe_reply_to(message, f"📋 **Результаты экспресс-аудита документа:**\n\n{completion.choices[0].message.content}")
+        report = safe_groq_request(messages, temperature=0.2)
+        safe_reply_to(message, f"📋 **Результаты экспресс-аудита документа:**\n\n{report}")
     except Exception as e:
         safe_reply_to(message, f"⚠️ Ошибка при анализе документа: {str(e)}")
 
@@ -697,7 +695,6 @@ scheduler.start()
 
 @app.on_event("startup")
 def setup_webhook_on_startup():
-    # Отключаем polling и регистрируем стабильный вебхук в Telegram API
     bot.remove_webhook()
     webhook_url = f"{RENDER_APP_URL}/api/telegram-webhook"
     bot.set_webhook(url=webhook_url)
