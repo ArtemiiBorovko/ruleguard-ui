@@ -19,7 +19,7 @@
             --tab-bg: #111115;
         }
 
-        [data-theme=\"light\"] {
+        [data-theme="light"] {
             --bg-color: #F2F2F7;
             --card-bg: #FFFFFF;
             --card-border: #E5E5EA;
@@ -346,7 +346,6 @@
         <div class="logo-area">
             <svg class="logo-svg" viewBox="0 0 24 24">
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                <path d="M9 11l2 2 4-4" fill="none" stroke="black" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
             <div class="brand-name">RuleGuard AI</div>
         </div>
@@ -379,7 +378,7 @@
 
             <div class="form-group">
                 <label>Чем занимается проект (краткое описание)</label>
-                <textarea id="biz-description" class="form-control" rows="3" placeholder="Например: Разработка B2B SaaS системы автоматического визуального контроля стройплощадок. Продажи крупным девелоперам по подписке."></textarea>
+                <textarea id="biz-description" class="form-control" rows="3" placeholder="Например: Разработка B2B SaaS системы автоматического визуального контроля стройплощадок..."></textarea>
             </div>
 
             <div class="form-group">
@@ -749,7 +748,7 @@
                 })
                 .catch(err => {
                     console.error("Доступ к микрофону заблокирован:", err);
-                    alert("Пожалуйста, разрешите доступ к микрофону в настройках Telegram / браузера.");
+                    alert("Пожалуйста, разрешите доступ к микрофону.");
                 });
             } else {
                 isRecording = false;
