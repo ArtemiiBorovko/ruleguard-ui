@@ -531,37 +531,36 @@
         }
 
         // Обработка записи аудио сообщений
-        function toggleVoiceRecording() {
-            const micBtn = document.getElementById('mic-btn');
-            
-            if (mediaRecorder && mediaRecorder.state === "recording") {
-                mediaRecorder.stop();
-                micBtn.classList.remove('recording');
-                micBtn.innerHTML = `<i class="fa-solid fa-microphone"></i>`;
-                return;
-            }
-
-            navigator.mediaDevices.getUserMedia({ audio: true })
-            .then(stream => {
-                audioChunks = [];
-                mediaRecorder = new MediaRecorder(stream);
-                
-                mediaRecorder.ondataavailable = event => {
-                    audioChunks.push(event.data);
-                };
-
-                mediaRecorder.onstop = () => {
-                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-                    sendVoiceBlobToServer(audioBlob);
-                };
-
-                mediaRecorder.start();
-                micBtn.classList.add('recording');
-                micBtn.innerHTML = `<i class="fa-solid fa-stop"></i>`;
+        function sendVoiceBlobToServer(blob) {
+            const box = document.getElementById('chat-messages-box');
+            box.innerHTML += `<div class="chat-msg user"><i class="fa-solid fa-microphone-lines"></i> Голосовое сообщение отправлено</div>`;
+            box.innerHTML += `<div class="chat-msg assistant" id="voice-loading-msg">🎙️ Расшифровываю аудио и генерирую ответ юриста...</div>`;
+            box.scrollTop = box.scrollHeight;
+        
+            const formData = new FormData();
+            // Передаем аудиофайл
+            formData.append('file', blob, 'voice.wav'); 
+        
+            // ВАЖНО: user_id передаем в URL. Читаем transcript и reply
+            fetch(`${BACKEND_URL}/api/chat/upload-voice?user_id=${userTelegramId}`, {
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                document.getElementById('voice-loading-msg')?.remove();
+                if (data.status === 'success') {
+                    box.innerHTML += `<div class="chat-msg assistant"><i>Текст вашего аудио: "${data.transcript}"</i>\n\n${data.reply}</div>`;
+                } else {
+                    box.innerHTML += `<div class="chat-msg assistant">⚠️ Ошибка аудио: ${data.message}</div>`;
+                }
+                box.scrollTop = box.scrollHeight;
             })
             .catch(err => {
-                console.error("Нет доступа к микрофону:", err);
-                alert("Ошибка: Предоставьте приложению доступ к микрофону в настройках.");
+                console.error(err);
+                document.getElementById('voice-loading-msg')?.remove();
+                box.innerHTML += `<div class="chat-msg assistant">⚠️ Не удалось отправить аудио на сервер.</div>`;
+                box.scrollTop = box.scrollHeight;
             });
         }
 
