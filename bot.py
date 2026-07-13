@@ -494,6 +494,40 @@ async def handle_webapp_voice(user_id: int, file: UploadFile = File(...)):
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+@app.post("/api/reanalyze/{user_id}")
+async def reanalyze(user_id: int):
+    try:
+        with engine.connect() as conn:
+            result = conn.execute(text("""
+                SELECT country, location, legal_form, business_description
+                FROM users
+                WHERE user_id=:user_id
+            """), {"user_id": user_id})
+
+            row = result.fetchone()
+
+        if not row:
+            return {
+                "status": "error",
+                "message": "Пользователь не найден"
+            }
+
+        report = generate_report_logic(
+            user_id,
+            f"{row[0]} {row[1]} {row[2]} {row[3]}"
+        )
+
+        return {
+            "status": "success",
+            "report": report
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
+
 # =====================================================================
 # ПЛАНИРОВЩИК И АНТИ-СОН
 # =====================================================================
