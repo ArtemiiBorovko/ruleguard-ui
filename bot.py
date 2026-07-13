@@ -39,9 +39,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 2. РАБОТА С БАЗОЙ ДАННЫХ
+# 2. РАБОТА С БАЗОЙ ДАННЫХ (Переведено на безопасный engine.begin)
 def init_db():
-    with engine.connect() as conn:
+    with engine.begin() as conn:
         conn.execute(text('''
             CREATE TABLE IF NOT EXISTS users (
                 user_id BIGINT PRIMARY KEY, 
@@ -81,10 +81,9 @@ def init_db():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         '''))
-        conn.commit()
 
 def save_user_data_extended(user_id, username=None, business=None, country=None, location=None, legal_form=None, push_time=None, timezone=None):
-    with engine.connect() as conn:
+    with engine.begin() as conn:
         result = conn.execute(text("SELECT user_name, business_description, country, location, legal_form, push_time, timezone FROM users WHERE user_id = :user_id"), {"user_id": user_id})
         row = result.fetchone()
         
@@ -111,7 +110,6 @@ def save_user_data_extended(user_id, username=None, business=None, country=None,
                 "user_id": user_id, "name": username or "Предприниматель", "bus": business or "Не указано", "country": country or "Не указано", 
                 "loc": location or "Не указано", "form": legal_form or "Не указано", "push": push_time or '09:00', "tz": timezone or 'UTC'
             })
-        conn.commit()
 
 def save_user_data(user_id, username=None, business=None):
     save_user_data_extended(user_id, username=username, business=business)
@@ -126,23 +124,21 @@ def get_user_context(user_id):
 
 def save_report_to_archive(user_id, input_text, report_text):
     try:
-        with engine.connect() as conn:
+        with engine.begin() as conn:
             conn.execute(text('''
                 INSERT INTO reports (user_id, input_text, report_text)
                 VALUES (:user_id, :input_text, :report_text)
             '''), {"user_id": user_id, "input_text": input_text, "report_text": report_text})
-            conn.commit()
     except Exception as e:
         print(f"Ошибка сохранения отчета: {e}")
 
 def save_chat_message(user_id, role, text_msg):
     try:
-        with engine.connect() as conn:
+        with engine.begin() as conn:
             conn.execute(text('''
                 INSERT INTO chat_history (user_id, role, message_text)
                 VALUES (:user_id, :role, :message_text)
             '''), {"user_id": user_id, "role": role, "message_text": text_msg})
-            conn.commit()
     except Exception as e:
         print(f"Ошибка сохранения сообщения: {e}")
 
@@ -228,13 +224,12 @@ def search_internet(query):
             if results:
                 context = "\n".join([f"Источник: {r['url']}\nТекст: {r['content']}" for r in results])
                 try:
-                    with engine.connect() as conn:
+                    with engine.begin() as conn:
                         conn.execute(text('''
                             INSERT INTO tavily_cache (query_hash, search_result) 
                             VALUES (:q, :res) ON CONFLICT (query_hash) 
                             DO UPDATE SET search_result = :res, created_at = CURRENT_TIMESTAMP
                         '''), {"q": clean_query, "res": context})
-                        conn.commit()
                 except Exception as db_err:
                     print(f"Ошибка записи кэша: {db_err}")
                 return context
@@ -301,7 +296,7 @@ def get_legal_chat_reply(user_id, current_input_text):
         f"Текущий год: {current_year}.\n"
         f"Данные бизнеса клиента: {user_context}\n"
         f"Свежие данные из сети (если запрашивались): {web_context}\n\n"
-        "Отвечай коротко, по делу, понятным языком. Если пользователь просто здоровается или общается, поддерживай диалог. Пиши в уважительном тоне."
+        "Отвечай коротко, по делу, понятным языком. Если пользователь просто здоровается или общается, поддерживай диалог. Пиши в увазительном тоне."
     )
 
     messages_payload = [{"role": "system", "content": system_instruction}]
@@ -320,14 +315,24 @@ def get_legal_chat_reply(user_id, current_input_text):
     save_chat_message(user_id, "assistant", bot_response)
     return bot_response
 
+# Пуленепробиваемая функция отправки сообщений с Markdown-fallback
+def safe_reply_to(message, text_content):
+    try:
+        bot.reply_to(message, text_content, parse_mode='Markdown')
+    except Exception:
+        try:
+            bot.reply_to(message, text_content)  # Если Markdown сломался, отправляем как обычный текст
+        except Exception as e:
+            print(f"Критическая ошибка отправки сообщения: {e}")
+
 def run_legal_analysis(message, current_input_text):
     bot.send_chat_action(message.chat.id, 'typing')
     user_id = message.from_user.id
     try:
         bot_response = get_legal_chat_reply(user_id, current_input_text)
-        bot.reply_to(message, bot_response, parse_mode='Markdown')
+        safe_reply_to(message, bot_response)
     except Exception as e:
-        bot.reply_to(message, f"⚠️ Ошибка ИИ Groq: {str(e)}")
+        safe_reply_to(message, f"⚠️ Ошибка ИИ Groq: {str(e)}")
 
 # =====================================================================
 # СЕРВЕРНЫЕ ЭНДПОИНТЫ ДЛЯ МИНИ-ПРИЛОЖЕНИЯ (WEBAPP)
@@ -335,6 +340,18 @@ def run_legal_analysis(message, current_input_text):
 @app.get("/")
 def read_root():
     return {"status": "online"}
+
+# Эндпоинт Вебхука для Telegram (Вместо нестабильного фонового Polling)
+@app.post("/api/telegram-webhook")
+async def telegram_webhook(request: Request):
+    try:
+        json_string = await request.body()
+        update = telebot.types.Update.de_json(json_string.decode('utf-8'))
+        bot.process_new_updates([update])
+        return {"status": "ok"}
+    except Exception as e:
+        print(f"Ошибка обработки вебхука: {e}")
+        return {"status": "error", "message": str(e)}
 
 @app.get("/api/chat/history/{user_id}")
 async def get_webapp_chat_history(user_id: int):
@@ -353,7 +370,8 @@ async def handle_webapp_chat_message(request: Request):
         text_msg = data.get('text', '').strip()
         if not text_msg: return {"status": "error", "message": "Empty text"}
         reply = get_legal_chat_reply(user_id, text_msg)
-        return {"status": "success", "reply": reply}
+        # ИСПРАВЛЕНО: возвращаем и reply, и report, чтобы фронтенд точно прочитал ответ
+        return {"status": "success", "reply": reply, "report": reply}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
@@ -377,8 +395,11 @@ async def handle_web_analysis(request: Request):
         report = generate_report_logic(user_id, compiled_input)
         
         flag = "🇺🇸" if country == "USA" else "🇷🇺" if country == "Russia" else "🌐"
-        bot.send_message(user_id, f"{flag} <b>Новый анализ из приложения</b>\n\n{report}", parse_mode='Markdown')
-        return {"status": "success", "report": report}
+        try:
+            bot.send_message(user_id, f"{flag} <b>Новый анализ из приложения</b>\n\n{report}", parse_mode='HTML')
+        except Exception:
+            bot.send_message(user_id, f"{flag} Новый анализ из приложения\n\n{report}")
+        return {"status": "success", "report": report, "reply": report}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
@@ -408,11 +429,8 @@ async def get_user_history(user_id: int, tz: str = "UTC"):
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-# === ИСПРАВЛЕНО: НОВЫЕ ЭНДПОИНТЫ ДЛЯ ПРИЕМА ФАЙЛОВ ИЗ WEBAPP ===
-
 @app.post("/api/webapp/analyze-doc")
 async def handle_webapp_doc(user_id: int, file: UploadFile = File(...)):
-    """Принимает файлы документов PDF/DOCX прямо из интерфейса WebApp"""
     try:
         file_name = file.filename.lower()
         if not (file_name.endswith('.pdf') or file_name.endswith('.docx')):
@@ -445,7 +463,7 @@ async def handle_webapp_doc(user_id: int, file: UploadFile = File(...)):
 
         system_instruction = (
             "Ты — опытный ИИ-юрист корпоративного уровня RuleGuard. Проведи экспресс-аудит загруженного договора.\n"
-            "Найди скрытые юридические ловушки, финансовые риски, жесткие штрафы и кабальные условия.\n\n"
+            "Найди скрытые юридические ловушки, financial-риски, жесткие штрафы и кабальные условия.\n\n"
             "Сформируй ответ строго по этой структуре:\n"
             "### 🔎 Общий вердикт по документу\n\n### ⚠️ Кабальные условия и скрытые риски\n\n### 🛠️ Что потребовать изменить / Протокол разногласий"
         )
@@ -461,17 +479,18 @@ async def handle_webapp_doc(user_id: int, file: UploadFile = File(...)):
         )
         report = completion.choices[0].message.content
         
-        try: bot.send_message(user_id, f"📋 **Результаты экспресс-аудита документа (из приложения):**\n\n{report}", parse_mode='Markdown')
-        except: pass
+        try: 
+            bot.send_message(user_id, f"📋 **Результаты экспресс-аудита документа (из приложения):**\n\n{report}", parse_mode='Markdown')
+        except Exception:
+            bot.send_message(user_id, f"📋 Результаты экспресс-аудита документа (из приложения):\n\n{report}")
         
-        return {"status": "success", "report": report}
+        # ИСПРАВЛЕНО: возвращаем и report, и reply для стабильности фронта
+        return {"status": "success", "report": report, "reply": report}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-
 @app.post("/api/webapp/analyze-voice")
 async def handle_webapp_voice(user_id: int, file: UploadFile = File(...)):
-    """Принимает голосовые сообщения в формате OGG/MP3/WAV прямо из интерфейса WebApp"""
     try:
         content = await file.read()
         filename = f"webapp_voice_{user_id}.ogg"
@@ -485,12 +504,13 @@ async def handle_webapp_voice(user_id: int, file: UploadFile = File(...)):
         if os.path.exists(filename):
             os.remove(filename)
             
-        user_text = str(transcription).strip()
+        user_text = getattr(transcription, 'text', str(transcription)).strip()
         if not user_text:
             return {"status": "error", "message": "Не удалось распознать речь."}
             
         reply = get_legal_chat_reply(user_id, user_text)
-        return {"status": "success", "user_text": user_text, "reply": reply}
+        # ИСПРАВЛЕНО: возвращаем оба ключа фронту для исключения undefined
+        return {"status": "success", "user_text": user_text, "reply": reply, "report": reply}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
@@ -503,30 +523,15 @@ async def reanalyze(user_id: int):
                 FROM users
                 WHERE user_id=:user_id
             """), {"user_id": user_id})
-
             row = result.fetchone()
 
         if not row:
-            return {
-                "status": "error",
-                "message": "Пользователь не найден"
-            }
+            return {"status": "error", "message": "Пользователь не найден"}
 
-        report = generate_report_logic(
-            user_id,
-            f"{row[0]} {row[1]} {row[2]} {row[3]}"
-        )
-
-        return {
-            "status": "success",
-            "report": report
-        }
-
+        report = generate_report_logic(user_id, f"{row[0]} {row[1]} {row[2]} {row[3]}")
+        return {"status": "success", "report": report, "reply": report}
     except Exception as e:
-        return {
-            "status": "error",
-            "message": str(e)
-        }
+        return {"status": "error", "message": str(e)}
 
 # =====================================================================
 # ПЛАНИРОВЩИК И АНТИ-СОН
@@ -555,7 +560,10 @@ def send_daily_push_notifications():
                     ],
                     temperature=0.4
                 )
-                bot.send_message(user_id, f"🛡️ <b>Ежедневный RuleGuard Радар</b>\n\n{completion.choices[0].message.content}", parse_mode="HTML")
+                try:
+                    bot.send_message(user_id, f"🛡️ <b>Ежедневный RuleGuard Радар</b>\n\n{completion.choices[0].message.content}", parse_mode="HTML")
+                except Exception:
+                    bot.send_message(user_id, f"🛡️ Ежедневный RuleGuard Радар\n\n{completion.choices[0].message.content}")
     except Exception as e:
         print(f"Ошибка планировщика пушей: {e}")
 
@@ -575,7 +583,7 @@ def send_welcome(message):
     markup.add(telebot.types.KeyboardButton(text="🚀 Открыть анкету RuleGuard", web_app=web_app_info))
     markup.add(telebot.types.KeyboardButton(text="🔄 Повторить последний анализ"))
     
-    bot.reply_to(message, f"🛡️ **Привет, {message.from_user.first_name}!** Бот снова полностью активен как в WebApp, так и прямо здесь в чате.", reply_markup=markup, parse_mode='Markdown')
+    safe_reply_to(message, f"🛡️ **Привет, {message.from_user.first_name}!** Бот полностью активен. Вы можете общаться со мной здесь или открыть полноценное приложение.")
 
 @bot.message_handler(func=lambda message: True, content_types=['text'])
 def handle_text(message):
@@ -587,15 +595,15 @@ def handle_text(message):
             row = result.fetchone()
             
         if not row or not row[3]:
-            bot.reply_to(message, "📭 Заполните сначала анкету в приложении!")
+            safe_reply_to(message, "📭 Заполните сначала анкету в приложении!")
             return
             
-        bot.reply_to(message, "⏳ *Обновляю отчет через Tavily API...*", parse_mode='Markdown')
+        safe_reply_to(message, "⏳ *Обновляю отчет через Tavily API...*")
         try:
             report = generate_report_logic(user_id, f"{row[0]} {row[1]} {row[2]} {row[3]}")
-            bot.send_message(user_id, f"🔄 **Свежий отчет:**\n\n{report}", parse_mode='Markdown')
+            safe_reply_to(message, f"🔄 **Свежий отчет:**\n\n{report}")
         except Exception as e:
-            bot.reply_to(message, f"⚠️ Ошибка: {e}")
+            safe_reply_to(message, f"⚠️ Ошибка: {e}")
     else:
         run_legal_analysis(message, message.text)
 
@@ -613,12 +621,13 @@ def handle_voice(message):
                 file=(filename, audio_file.read()), model="whisper-large-v3", language="ru", response_format="text"
             )
         if os.path.exists(filename): os.remove(filename)
-        user_text = str(transcription).strip()
+        
+        user_text = getattr(transcription, 'text', str(transcription)).strip()
         if user_text:
-            bot.reply_to(message, f"🗣️ *Текст:* {user_text}", parse_mode='Markdown')
+            safe_reply_to(message, f"🗣️ *Текст вашего аудио:* {user_text}")
             run_legal_analysis(message, user_text)
     except Exception as e:
-        bot.reply_to(message, f"⚠️ Ошибка: {str(e)}")
+        safe_reply_to(message, f"⚠️ Ошибка обработки аудио: {str(e)}")
 
 @bot.message_handler(content_types=['document'])
 def handle_document(message):
@@ -627,11 +636,11 @@ def handle_document(message):
         file_name = message.document.file_name.lower()
         
         if not (file_name.endswith('.pdf') or file_name.endswith('.docx')):
-            bot.reply_to(message, "❌ Я принимаю только файлы в формате **PDF** или **DOCX**.")
+            safe_reply_to(message, "❌ Я принимаю только файлы в формате **PDF** или **DOCX**.")
             return
             
         bot.send_chat_action(message.chat.id, 'typing')
-        bot.reply_to(message, "📥 *Скачиваю и изучаю документ...*", parse_mode='Markdown')
+        safe_reply_to(message, "📥 *Скачиваю и изучаю документ...*")
         
         downloaded_file = bot.download_file(file_info.file_path)
         local_filename = f"doc_{message.document.file_id}_{file_name}"
@@ -654,7 +663,7 @@ def handle_document(message):
             
         text_content = text_content.strip()
         if len(text_content) < 50:
-            bot.reply_to(message, "⚠️ Не удалось извлечь текст из документа.")
+            safe_reply_to(message, "⚠️ Не удалось извлечь текст из документа.")
             return
             
         if len(text_content) > 30000:
@@ -675,11 +684,11 @@ def handle_document(message):
             ],
             temperature=0.2
         )
-        bot.send_message(message.chat.id, f"📋 **Результаты экспресс-аудита документа:**\n\n{completion.choices[0].message.content}", parse_mode='Markdown')
+        safe_reply_to(message, f"📋 **Результаты экспресс-аудита документа:**\n\n{completion.choices[0].message.content}")
     except Exception as e:
-        bot.reply_to(message, f"⚠️ Ошибка при анализе документа: {str(e)}")
+        safe_reply_to(message, f"⚠️ Ошибка при анализе документа: {str(e)}")
 
-# 6. ЗАПУСК
+# 6. ЗАПУСК И НАСТРОЙКА ВЕБХУКА
 init_db()
 scheduler = BackgroundScheduler(daemon=True)
 scheduler.add_job(send_daily_push_notifications, 'interval', minutes=1)
@@ -687,5 +696,9 @@ scheduler.add_job(smart_ping_render, 'interval', minutes=10)
 scheduler.start()
 
 @app.on_event("startup")
-def start_bot_polling():
-    threading.Thread(target=bot.infinity_polling, kwargs={"skip_pending": True}, daemon=True).start()
+def setup_webhook_on_startup():
+    # Отключаем polling и регистрируем стабильный вебхук в Telegram API
+    bot.remove_webhook()
+    webhook_url = f"{RENDER_APP_URL}/api/telegram-webhook"
+    bot.set_webhook(url=webhook_url)
+    print(f"🚀 Роутер Вебхука успешно зарегистрирован на URL: {webhook_url}")
