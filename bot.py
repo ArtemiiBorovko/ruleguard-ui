@@ -595,7 +595,6 @@ def get_admin_stats(admin: str = Depends(get_current_admin)):
 
 # Дублируем роут со слэшем и без, чтобы избежать ERR_TOO_MANY_RETRIES на Render
 @app.get("/admin", response_class=HTMLResponse)
-@app.get("/admin/", response_class=HTMLResponse)
 def get_admin_dashboard(admin: str = Depends(get_current_admin)):
     return """
     <!DOCTYPE html>
