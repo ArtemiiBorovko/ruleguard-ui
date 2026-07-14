@@ -10,6 +10,11 @@ from apscheduler.schedulers.background import BackgroundScheduler
 import pypdf
 import docx2txt
 
+from fastapi.responses import HTMLResponse
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
+from fastapi import Depends, HTTPException, status
+import secrets
+
 # Работа с PostgreSQL
 from sqlalchemy import create_engine, text
 
@@ -30,6 +35,21 @@ bot = telebot.TeleBot(TELEGRAM_TOKEN)
 groq_client = Groq(api_key=GROQ_API_KEY)
 engine = create_engine(DATABASE_URL)
 app = FastAPI()
+
+security = HTTPBasic()
+
+def get_current_admin(credentials: HTTPBasicCredentials = Depends(security)):
+    # ⚠️ Поменяй пароль на свой!
+    correct_username = secrets.compare_digest(credentials.username, "artemiiborovko")
+    correct_password = secrets.compare_digest(credentials.password, "N5oXxMAhdw")
+    
+    if not (correct_username and correct_password):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Неверный логин или пароль",
+            headers={"WWW-Authenticate": "Basic"},
+        )
+    return credentials.username
 
 app.add_middleware(
     CORSMiddleware,
@@ -535,6 +555,132 @@ async def reanalyze(user_id: int):
         return {"status": "success", "report": report, "reply": report}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+@app.get("/api/admin/stats")
+def get_admin_stats(admin: str = Depends(get_current_admin)):
+    try:
+        with engine.connect() as conn:
+            # 1. Всего пользователей
+            total_users = conn.execute(text("SELECT COUNT(*) FROM users")).scalar()
+            
+            # 2. Пользователи по городам (топ-5)
+            loc_res = conn.execute(text("""
+                SELECT location, COUNT(*) as count 
+                FROM users 
+                WHERE location IS NOT NULL AND location != 'Не указано'
+                GROUP BY location ORDER BY count DESC LIMIT 5
+            """)).fetchall()
+            locations = {"labels": [r[0] for r in loc_res], "data": [r[1] for r in loc_res]}
+            
+            # 3. Время пушей
+            push_res = conn.execute(text("""
+                SELECT push_time, COUNT(*) as count 
+                FROM users 
+                GROUP BY push_time ORDER BY push_time
+            """)).fetchall()
+            pushes = {"labels": [r[0] for r in push_res], "data": [r[1] for r in push_res]}
+            
+            # 4. Затраты запросов (Отчеты + Чат)
+            reports_count = conn.execute(text("SELECT COUNT(*) FROM reports")).scalar()
+            chat_count = conn.execute(text("SELECT COUNT(*) FROM chat_history WHERE role = 'user'")).scalar()
+            groq_requests = {"labels": ["Анализ бизнеса", "Диалоги в чате"], "data": [reports_count, chat_count]}
+
+        return {
+            "status": "success",
+            "total_users": total_users,
+            "locations": locations,
+            "pushes": pushes,
+            "groq_requests": groq_requests
+        }
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.get("/admin", response_class=HTMLResponse)
+def get_admin_dashboard(admin: str = Depends(get_current_admin)):
+    return """
+    <!DOCTYPE html>
+    <html lang="ru">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>RuleGuard AI - Админ Панель</title>
+        <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+        <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #ffffff; margin: 0; padding: 20px; }
+            .header { text-align: center; margin-bottom: 30px; }
+            .header h1 { margin: 0; color: #4CAF50; }
+            .stat-box { background: #1e1e1e; padding: 20px; border-radius: 10px; text-align: center; margin-bottom: 20px; }
+            .stat-box h2 { font-size: 3rem; margin: 10px 0; color: #4CAF50; }
+            .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+            .chart-container { background: #1e1e1e; padding: 20px; border-radius: 10px; }
+        </style>
+    </head>
+    <body>
+        <div class="header">
+            <h1>🛡️ RuleGuard Admin</h1>
+            <p>Панель мониторинга активности</p>
+        </div>
+        
+        <div class="stat-box">
+            <h3>Всего пользователей</h3>
+            <h2 id="totalUsers">...</h2>
+        </div>
+
+        <div class="grid">
+            <div class="chart-container">
+                <canvas id="locationsChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <canvas id="pushesChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <canvas id="groqChart"></canvas>
+            </div>
+        </div>
+
+        <script>
+            Chart.defaults.color = '#fff';
+            
+            async function loadData() {
+                const response = await fetch('/api/admin/stats');
+                const data = await response.json();
+                
+                document.getElementById('totalUsers').innerText = data.total_users;
+
+                // График городов
+                new Chart(document.getElementById('locationsChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: data.locations.labels,
+                        datasets: [{ label: 'Пользователи по городам', data: data.locations.data, backgroundColor: '#4CAF50' }]
+                    }
+                });
+
+                // График времени пушей
+                new Chart(document.getElementById('pushesChart'), {
+                    type: 'line',
+                    data: {
+                        labels: data.pushes.labels,
+                        datasets: [{ label: 'Время рассылки (UTC)', data: data.pushes.data, borderColor: '#2196F3', tension: 0.3 }]
+                    }
+                });
+
+                // График запросов Groq
+                new Chart(document.getElementById('groqChart'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: data.groq_requests.labels,
+                        datasets: [{ data: data.groq_requests.data, backgroundColor: ['#FF9800', '#F44336'] }]
+                    },
+                    options: { plugins: { title: { display: true, text: 'Нагрузка на API Groq' } } }
+                });
+            }
+            
+            loadData();
+        </script>
+    </body>
+    </html>
+    """
 
 # =====================================================================
 # ПЛАНИРОВЩИК И АНТИ-СОН
