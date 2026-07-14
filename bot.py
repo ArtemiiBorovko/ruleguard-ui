@@ -39,7 +39,8 @@ app = FastAPI()
 security = HTTPBasic()
 
 def get_current_admin(credentials: HTTPBasicCredentials = Depends(security)):
-    # ⚠️ Поменяй пароль на свой!
+    # ТУТ мы задаем логин и пароль для доступа к дашборду.
+    # Логин теперь: artemiiborovko
     correct_username = secrets.compare_digest(credentials.username, "artemiiborovko")
     correct_password = secrets.compare_digest(credentials.password, "N5oXxMAhdw")
     
@@ -556,14 +557,13 @@ async def reanalyze(user_id: int):
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+# API для сбора статистики из базы
 @app.get("/api/admin/stats")
 def get_admin_stats(admin: str = Depends(get_current_admin)):
     try:
         with engine.connect() as conn:
-            # 1. Всего пользователей
             total_users = conn.execute(text("SELECT COUNT(*) FROM users")).scalar()
             
-            # 2. Пользователи по городам (топ-5)
             loc_res = conn.execute(text("""
                 SELECT location, COUNT(*) as count 
                 FROM users 
@@ -572,7 +572,6 @@ def get_admin_stats(admin: str = Depends(get_current_admin)):
             """)).fetchall()
             locations = {"labels": [r[0] for r in loc_res], "data": [r[1] for r in loc_res]}
             
-            # 3. Время пушей
             push_res = conn.execute(text("""
                 SELECT push_time, COUNT(*) as count 
                 FROM users 
@@ -580,7 +579,6 @@ def get_admin_stats(admin: str = Depends(get_current_admin)):
             """)).fetchall()
             pushes = {"labels": [r[0] for r in push_res], "data": [r[1] for r in push_res]}
             
-            # 4. Затраты запросов (Отчеты + Чат)
             reports_count = conn.execute(text("SELECT COUNT(*) FROM reports")).scalar()
             chat_count = conn.execute(text("SELECT COUNT(*) FROM chat_history WHERE role = 'user'")).scalar()
             groq_requests = {"labels": ["Анализ бизнеса", "Диалоги в чате"], "data": [reports_count, chat_count]}
@@ -595,7 +593,9 @@ def get_admin_stats(admin: str = Depends(get_current_admin)):
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+# Дублируем роут со слэшем и без, чтобы избежать ERR_TOO_MANY_RETRIES на Render
 @app.get("/admin", response_class=HTMLResponse)
+@app.get("/admin/", response_class=HTMLResponse)
 def get_admin_dashboard(admin: str = Depends(get_current_admin)):
     return """
     <!DOCTYPE html>
@@ -647,7 +647,6 @@ def get_admin_dashboard(admin: str = Depends(get_current_admin)):
                 
                 document.getElementById('totalUsers').innerText = data.total_users;
 
-                // График городов
                 new Chart(document.getElementById('locationsChart'), {
                     type: 'bar',
                     data: {
@@ -656,7 +655,6 @@ def get_admin_dashboard(admin: str = Depends(get_current_admin)):
                     }
                 });
 
-                // График времени пушей
                 new Chart(document.getElementById('pushesChart'), {
                     type: 'line',
                     data: {
@@ -665,7 +663,6 @@ def get_admin_dashboard(admin: str = Depends(get_current_admin)):
                     }
                 });
 
-                // График запросов Groq
                 new Chart(document.getElementById('groqChart'), {
                     type: 'doughnut',
                     data: {
