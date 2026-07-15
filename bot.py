@@ -22,14 +22,16 @@ from sqlalchemy import create_engine, text
 from fastapi import FastAPI, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 
-# 1. ТОКЕНЫ И НАСТРОЙКА
-TELEGRAM_TOKEN = "8811867508:AAFxcE58OJbSbt9lmZHRFcpayMYfOE0AXLI"
-PART1 = "gsk_xzHKSXzDAGqaXlkDN"
-PART2 = "aruWGdyb3FYHLzc9L0QEclH8aW2ZGrMi3Ye"
-GROQ_API_KEY = PART1 + PART2
-DATABASE_URL = "postgresql://admin:qmoBE1mBhoi4ANcFHBs8du2Jw3hSql3g@dpg-d97s2pnavr4c73di73hg-a/ruleguard"
-TAVILY_API_KEY = "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"
+# 1. ТОКЕНЫ И НАСТРОЙКА (Безопасное чтение из переменных окружения)
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+DATABASE_URL = os.getenv("DATABASE_URL")
+TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
 RENDER_APP_URL = os.getenv("RENDER_EXTERNAL_URL", "https://ruleguard-backend.onrender.com")
+
+# Простая проверка на старте, чтобы сразу увидеть, если забыли указать переменную
+if not all([TELEGRAM_TOKEN, GROQ_API_KEY, DATABASE_URL, TAVILY_API_KEY]):
+    print("⚠️ ВНИМАНИЕ: Не все переменные окружения настроены на сервере!")
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 groq_client = Groq(api_key=GROQ_API_KEY)
