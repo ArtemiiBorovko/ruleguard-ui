@@ -64,6 +64,7 @@ app.add_middleware(
 
 # 2. РАБОТА С БАЗОЙ ДАННЫХ
 def init_db():
+    # ШАГ 1: Спокойно создаем все таблицы в первом пакете (транзакции)
     with engine.begin() as conn:
         conn.execute(text('''
             CREATE TABLE IF NOT EXISTS users (
@@ -80,12 +81,6 @@ def init_db():
             )
         '''))
         
-        # Безопасное обновление старой таблицы (добавление колонки, если её нет)
-        try:
-            conn.execute(text("ALTER TABLE users ADD COLUMN last_push_date DATE;"))
-        except Exception:
-            pass # Колонка уже существует, всё в порядке
-
         conn.execute(text('''
             CREATE TABLE IF NOT EXISTS reports (
                 id SERIAL PRIMARY KEY,
@@ -112,6 +107,14 @@ def init_db():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         '''))
+
+    # ШАГ 2: Отдельная транзакция для добавления колонки
+    # Если колонка уже существует, ошибка тихо перехватится и ничего не сломает
+    try:
+        with engine.begin() as conn:
+            conn.execute(text("ALTER TABLE users ADD COLUMN last_push_date DATE;"))
+    except Exception:
+        pass
 
 def save_user_data_extended(user_id, username=None, business=None, country=None, location=None, legal_form=None, push_time=None, timezone=None):
     with engine.begin() as conn:
