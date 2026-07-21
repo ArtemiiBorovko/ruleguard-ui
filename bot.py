@@ -41,8 +41,6 @@ app = FastAPI()
 security = HTTPBasic()
 
 def get_current_admin(credentials: HTTPBasicCredentials = Depends(security)):
-    # ТУТ мы задаем логин и пароль для доступа к дашборду.
-    # Логин теперь: artemiiborovko
     correct_username = secrets.compare_digest(credentials.username, "artemiiborovko")
     correct_password = secrets.compare_digest(credentials.password, "N5oXxMAhdw")
     
@@ -64,7 +62,6 @@ app.add_middleware(
 
 # 2. РАБОТА С БАЗОЙ ДАННЫХ
 def init_db():
-    # ШАГ 1: Спокойно создаем все таблицы в первом пакете (транзакции)
     with engine.begin() as conn:
         conn.execute(text('''
             CREATE TABLE IF NOT EXISTS users (
@@ -109,8 +106,6 @@ def init_db():
             )
         '''))
 
-    # ШАГ 2: Отдельная транзакция для добавления колонки
-    # Если колонка уже существует, ошибка тихо перехватится и ничего не сломает
     try:
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE users ADD COLUMN push_frequency TEXT DEFAULT 'daily';"))
@@ -191,15 +186,14 @@ def get_recent_chat_history(user_id, limit=6):
         print(f"Ошибка получения истории чата: {e}")
         return []
 
-# 3. УМНЫЙ РОУТЕР GROQ (Оптимизация токенов и каскадный фоллбэк)
+# 3. УМНЫЙ РОУТЕР GROQ И ИНТЕЛЛЕКТУАЛЬНЫЙ ПАРСЕР КОМАНД СПРИНТА 3
 def safe_groq_request(messages, temperature=0.3, max_tokens=None, is_dispatcher=False):
-    # Диспетчеру не нужна тяжелая модель 70b, используем быструю и экономную
     if is_dispatcher:
         primary_model = "llama-3.1-8b-instant"
         fallback_model = "llama-3.1-8b-instant"
     else:
         primary_model = "llama-3.3-70b-versatile"
-        fallback_model = "llama-3.1-8b-instant" # Резерв на случай 429 ошибки
+        fallback_model = "llama-3.1-8b-instant"
         
     kwargs = {"model": primary_model, "messages": messages, "temperature": temperature}
     if max_tokens: kwargs["max_tokens"] = max_tokens
@@ -208,7 +202,6 @@ def safe_groq_request(messages, temperature=0.3, max_tokens=None, is_dispatcher=
         completion = groq_client.chat.completions.create(**kwargs)
         return completion.choices[0].message.content
     except Exception as e:
-        # Если словили 429, прозрачно для пользователя переключаемся на легкую модель
         if "429" in str(e) or "rate_limit" in str(e):
             print(f"⚠️ Лимит {primary_model} исчерпан. Экстренный переход на {fallback_model}...")
             kwargs["model"] = fallback_model
@@ -232,11 +225,75 @@ def check_if_search_needed(history, current_input):
             messages.append(msg)
         messages.append({"role": "user", "content": f"Вопрос пользователя: {current_input}"})
         
-        # Используем диспетчера для экономии
         decision = safe_groq_request(messages, temperature=0.0, max_tokens=5, is_dispatcher=True)
         return "SEARCH" in decision.strip().upper()
     except Exception:
         return True
+
+# --- СПРИНТ 3: Интеллектуальный парсер ИИ-команд из текста/голоса ---
+def parse_and_apply_ai_intent(user_id, text_input):
+    system_prompt = (
+        "Ты — анализатор намерений пользователя в приложении RuleGuard.\n"
+        "Проанализируй текст и определи, хочет ли пользователь изменить настройки интерфейса или профиля:\n"
+        "1. Тема интерфейса: если просит включить светлую тему, белый интерфейс -> theme: 'light'. Если темную -> theme: 'dark'.\n"
+        "2. Время пушей: если просит ставить уведомления/пуши на определенное время (например, на 10:00) -> push_time: 'HH:MM'.\n"
+        "3. Параметры бизнеса или страны/локации, если он их прямо меняет.\n\n"
+        "Верни результат СТРОГО в формате JSON без лишнего текста и без markdown-оформления:\n"
+        "{\n"
+        "  \"action\": \"settings_updated\" или \"profile_updated\" или \"none\",\n"
+        "  \"theme\": \"light\" или \"dark\" или null,\n"
+        "  \"push_time\": \"HH:MM\" или null,\n"
+        "  \"country\": \"...\" или null,\n"
+        "  \"location\": \"...\" или null,\n"
+        "  \"legal_form\": \"...\" или null,\n"
+        "  \"business_description\": \"...\" или null\n"
+        "}"
+    )
+    try:
+        response = safe_groq_request(
+            [{"role": "system", "content": system_prompt}, {"role": "user", "content": text_input}],
+            temperature=0.0, max_tokens=200, is_dispatcher=True
+        )
+        cleaned = response.strip()
+        if cleaned.startswith("```json"):
+            cleaned = cleaned[7:]
+        if cleaned.endswith("```"):
+            cleaned = cleaned[:-3]
+        data = json.loads(cleaned.strip())
+        
+        action = data.get("action", "none")
+        if action in ["settings_updated", "profile_updated"]:
+            theme = data.get("theme")
+            push_time = data.get("push_time")
+            country = data.get("country")
+            location = data.get("location")
+            legal_form = data.get("legal_form")
+            business_desc = data.get("business_description")
+            
+            # Применяем в базу данных
+            save_user_data_extended(
+                user_id=user_id,
+                business=business_desc,
+                country=country,
+                location=location,
+                legal_form=legal_form,
+                push_time=push_time
+            )
+            return {
+                "action": action,
+                "updated_fields": {
+                    "theme": theme,
+                    "push_time": push_time,
+                    "country": country,
+                    "location": location,
+                    "legal_form": legal_form,
+                    "business_description": business_desc
+                }
+            }
+    except Exception as e:
+        print(f"⚠️ Ошибка парсинга интента Спринта 3: {e}")
+    
+    return {"action": "none", "updated_fields": {}}
 
 # 4. ПОИСК В ИНТЕРНЕТЕ
 def search_internet(query):
@@ -328,7 +385,7 @@ def generate_report_logic(user_id, current_input_text):
 
 def get_legal_chat_reply(user_id, current_input_text):
     user_context = get_user_context(user_id)
-    history_messages = get_recent_chat_history(user_id, limit=4) # Уменьшили историю с 6 до 4 для экономии
+    history_messages = get_recent_chat_history(user_id, limit=4)
     need_search = check_if_search_needed(history_messages, current_input_text)
     
     web_context = ""
@@ -414,8 +471,18 @@ async def handle_webapp_chat_message(request: Request):
         user_id = int(data.get('user_id'))
         text_msg = data.get('text', '').strip()
         if not text_msg: return {"status": "error", "message": "Empty text"}
+        
+        # Спринт 3: Проверяем команды изменения настроек через чат
+        intent_result = parse_and_apply_ai_intent(user_id, text_msg)
+        
         reply = get_legal_chat_reply(user_id, text_msg)
-        return {"status": "success", "reply": reply, "report": reply}
+        return {
+            "status": "success", 
+            "reply": reply, 
+            "report": reply,
+            "action": intent_result.get("action"),
+            "updated_fields": intent_result.get("updated_fields")
+        }
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
@@ -547,8 +614,18 @@ async def handle_webapp_voice(user_id: int, file: UploadFile = File(...)):
         if not user_text:
             return {"status": "error", "message": "Не удалось распознать речь."}
             
+        # Спринт 3: Проверяем команды из аудиосообщения
+        intent_result = parse_and_apply_ai_intent(user_id, user_text)
+            
         reply = get_legal_chat_reply(user_id, user_text)
-        return {"status": "success", "user_text": user_text, "reply": reply, "report": reply}
+        return {
+            "status": "success", 
+            "user_text": user_text, 
+            "reply": reply, 
+            "report": reply,
+            "action": intent_result.get("action"),
+            "updated_fields": intent_result.get("updated_fields")
+        }
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
@@ -597,7 +674,6 @@ def get_admin_stats(admin: str = Depends(get_current_admin)):
             chat_count = conn.execute(text("SELECT COUNT(*) FROM chat_history WHERE role = 'user'")).scalar()
             groq_requests = {"labels": ["Анализ бизнеса", "Диалоги в чате"], "data": [reports_count, chat_count]}
 
-            # Детальная таблица пользователей для анализа целевой аудитории
             users_query = text("""
                 SELECT u.user_id, u.user_name, u.country, u.location, u.legal_form, u.business_description, u.push_time, u.timezone,
                        (SELECT COUNT(*) FROM reports r WHERE r.user_id = u.user_id) as reports_count,
@@ -716,7 +792,6 @@ def get_admin_dashboard(admin: str = Depends(get_current_admin)):
                 
                 document.getElementById('totalUsers').innerText = data.total_users;
 
-                // Заполнение таблицы пользователей
                 const tableBody = document.getElementById('usersTableBody');
                 tableBody.innerHTML = '';
                 if (data.users_details && data.users_details.length > 0) {
@@ -774,7 +849,6 @@ def get_admin_dashboard(admin: str = Depends(get_current_admin)):
 def send_daily_push_notifications():
     try:
         with engine.connect() as conn:
-            # Добавили извлечение last_push_date
             result = conn.execute(text("SELECT user_id, user_name, business_description, location, push_time, timezone, country, legal_form, last_push_date FROM users"))
             all_users = result.fetchall()
         
@@ -787,17 +861,13 @@ def send_daily_push_notifications():
             now_tz = datetime.now(tz)
             today_date = now_tz.date()
             
-            # Парсим время из настроек пользователя (например "09:00" -> 9 и 0)
             try:
                 push_hour, push_minute = map(int, push_time.split(':'))
             except Exception:
-                push_hour, push_minute = 9, 0 # Fallback на 09:00 при ошибке
+                push_hour, push_minute = 9, 0
             
-            # Логика: Время пришло (или уже прошло) И сегодня пуш еще не отправлялся
             if (now_tz.hour > push_hour or (now_tz.hour == push_hour and now_tz.minute >= push_minute)):
                 if last_push_date != today_date:
-                    
-                    # 1. Генерируем и отправляем отчет
                     search_query = f"{country or ''} {location or ''} {legal_form or ''} {business or ''}"
                     web_data = search_internet(search_query)
                     
@@ -812,7 +882,6 @@ def send_daily_push_notifications():
                     except Exception:
                         bot.send_message(user_id, f"🛡️ Ежедневный RuleGuard Радар\n\n{bot_response}")
                     
-                    # 2. Обязательно записываем в БД, что пуш на сегодня отправлен
                     try:
                         with engine.begin() as update_conn:
                             update_conn.execute(
