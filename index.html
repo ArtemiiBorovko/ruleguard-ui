@@ -31,7 +31,6 @@
             --tab-bg: #FFFFFF;
         }
 
-        /* Пункт 4: Белый текст в ключевых кнопках при светлой теме */
         [data-theme="light"] .btn-submit, 
         [data-theme="light"] .theme-switch-box button {
             color: #FFFFFF !important;
@@ -117,7 +116,6 @@
             color: var(--text-muted); font-size: 11px; font-weight: 500; cursor: pointer; width: 25%;
             transition: color 0.2s ease, transform 0.2s ease;
         }
-        /* Пункт 3: Ховер на вкладки */
         .tab-item:hover { color: var(--accent-color); transform: scale(1.05); }
         .tab-item i { font-size: 20px; }
         .tab-item.active { color: var(--accent-color); }
@@ -142,7 +140,6 @@
             transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
         }
         .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
-        /* Пункт 3: Глобальный ховер для кнопок */
         .btn-submit:hover:not(:disabled), .theme-switch-box button:hover {
             transform: scale(1.02);
             box-shadow: 0 4px 16px rgba(48, 209, 88, 0.3);
@@ -164,7 +161,6 @@
             animation: spin 0.8s linear infinite;
         }
 
-        /* Стиль для интерактивного встроенного чата */
         .chat-container {
             display: flex;
             flex-direction: column;
@@ -222,7 +218,6 @@
             flex-shrink: 0;
             transition: all 0.2s ease;
         }
-        /* Пункт 5: Интерактивные иконки (скрепка и микрофон меняют цвет на зеленый при наведении) */
         .chat-action-btn:hover {
             color: var(--accent-color);
             border-color: var(--accent-color);
@@ -275,7 +270,6 @@
         
         <div id="screen-radar" class="app-screen active">
             <div class="card radar-box">
-                <!-- Пункт 9: Брендинг - кастомная буква R вместо щита -->
                 <svg class="app-logo" viewBox="0 0 1185 1437" fill="none" xmlns="http://www.w3.org/2000/svg">
                     <path fill-rule="evenodd" clip-rule="evenodd" d="M591.223 0L74.8181 148.822C34.9697 159.499 0 199.712 0 245.253V776.295C0 1050.35 332.613 1319.88 591.223 1436.17C850.644 1310.93 1176.75 1069.4 1184.07 777.451V246.41C1184.07 204.935 1158.05 164.273 1109.25 148.822L591.223 0ZM398.956 839.257V1160C458.844 1210.78 519.1 1257.01 591.223 1289.79C667.667 1248.31 728.659 1210.91 804.29 1151.54L590.065 839.257H398.956ZM748.99 820.553L906 1051.5C973.557 972.557 1057.82 888.305 1055.36 777.117L1055.58 267.219L591.44 134.184L128.493 267.212V777.451C133.697 911.472 219.575 1014.37 269.995 1057.2V331.262L640.83 330.173C984.828 330.173 1001.09 732.724 748.99 820.553ZM398.704 710.766L398.486 458.664H657.094C840.072 458.664 834.597 710.766 657.312 710.766H398.704Z"/>
                 </svg>
@@ -316,7 +310,6 @@
                     
                     <input type="text" id="chat-user-input" placeholder="Вопрос юристу..." onkeydown="if(event.key==='Enter') sendChatMessage()">
                     
-                    <!-- Пункт 7: Кнопка самолетика совмещает отправку текста и остановку/отправку аудио -->
                     <button class="chat-send-btn" id="chat-send-btn" onclick="sendChatMessage()" title="Отправить">
                         <i class="fa-solid fa-paper-plane"></i>
                     </button>
@@ -359,10 +352,11 @@
             </div>
         </div>
 
+        <!-- Спринт 2: Строка поиска в архиве -->
         <div id="screen-archive" class="app-screen">
-            <div class="card">
-                <h3 style="margin: 0 0 4px 0;">Архив отчетов</h3>
-                <!-- Пункт 8: Странная надпись про PostgreSQL успешно удалена -->
+            <div class="card" style="margin-bottom: 12px;">
+                <h3 style="margin: 0 0 8px 0;">Архив отчетов</h3>
+                <input type="text" id="archive-search-input" placeholder="🔍 Поиск по названию бизнеса..." oninput="filterArchive()">
             </div>
             <div id="archive-list">
                 <div class="card" style="opacity: 0.6; text-align: center; padding: 40px 20px;">
@@ -372,13 +366,23 @@
             </div>
         </div>
 
+        <!-- Спринт 2: Выбор частоты уведомлений в настройках -->
         <div id="screen-settings" class="app-screen">
             <div class="card">
                 <h3>Настройки системы</h3>
                 
                 <div class="form-group">
                     <label><i class="fa-regular fa-clock"></i> Время ежедневного пуша спокойствия</label>
-                    <input type="time" id="push_time" value="09:00" onchange="updatePushTimeOnServer()">
+                    <input type="time" id="push_time" value="09:00" onchange="updatePushSettingsOnServer()">
+                </div>
+
+                <div class="form-group">
+                    <label><i class="fa-solid fa-calendar-days"></i> Частота уведомлений</label>
+                    <select id="push_frequency" onchange="updatePushSettingsOnServer()">
+                        <option value="daily">Каждый день</option>
+                        <option value="workdays">По будням (Пн-Пт)</option>
+                        <option value="weekly">Раз в неделю</option>
+                    </select>
                 </div>
                 
                 <hr style="border: 0; border-top: 1px solid var(--card-border); margin: 8px 0;">
@@ -417,8 +421,8 @@
 
         let mediaRecorder = null;
         let audioChunks = [];
+        let globalHistoryCache = []; // Кэш для поиска по архиву
 
-        // Пункт 6: Динамика самолетика (изменение цвета иконки при наличии текста)
         document.getElementById('chat-user-input').addEventListener('input', function() {
             const sendBtn = document.getElementById('chat-send-btn');
             if (this.value.trim().length > 0) {
@@ -459,10 +463,14 @@
                     if (data.push_time) {
                         document.getElementById('push_time').value = data.push_time;
                     }
+                    if (data.push_frequency) {
+                        document.getElementById('push_frequency').value = data.push_frequency;
+                    }
                     if (data.history && data.history.length > 0) {
+                        globalHistoryCache = data.history;
                         const lastReport = data.history[0].report_text;
                         document.getElementById('ai-live-output').innerHTML = `<div class="analysis-output">${lastReport}</div>`;
-                        renderArchive(data.history);
+                        renderArchive(globalHistoryCache);
                     } else {
                         document.getElementById('ai-live-output').innerText = "Здесь отобразится информация после заполнения параметров бизнеса.";
                     }
@@ -492,7 +500,6 @@
         }
 
         function sendChatMessage() {
-            // Пункт 7: Если идет запись голоса, клик по самолетику останавливает запись и отправляет аудио
             if (mediaRecorder && mediaRecorder.state === "recording") {
                 mediaRecorder.stop();
                 const micBtn = document.getElementById('mic-btn');
@@ -513,7 +520,6 @@
             box.scrollTop = box.scrollHeight;
             input.value = '';
 
-            // Сброс подсветки самолетика
             const sendBtn = document.getElementById('chat-send-btn');
             sendBtn.style.color = 'var(--text-muted)';
             sendBtn.style.borderColor = 'var(--card-border)';
@@ -542,7 +548,6 @@
             });
         }
 
-        // Обработка загрузки документов
         function handleFileSelected() {
             const fileInput = document.getElementById('chat-file-input');
             if (fileInput.files.length === 0) return;
@@ -583,7 +588,6 @@
             });
         }
 
-        // Обработка записи аудио сообщений
         function toggleVoiceRecording() {
             const micBtn = document.getElementById('mic-btn');
             
@@ -692,6 +696,16 @@
         function renderArchive(historyArray) {
             const archiveList = document.getElementById('archive-list');
             archiveList.innerHTML = '';
+            
+            if (!historyArray || historyArray.length === 0) {
+                archiveList.innerHTML = `
+                    <div class="card" style="opacity: 0.6; text-align: center; padding: 40px 20px;">
+                        <i class="fa-regular fa-folder-open" style="font-size: 32px; color: var(--text-muted); margin-bottom: 10px;"></i>
+                        <p style="margin: 0; font-size: 14px;">Ничего не найдено.</p>
+                    </div>`;
+                return;
+            }
+
             historyArray.forEach(item => {
                 archiveList.innerHTML += `
                     <div class="card">
@@ -705,8 +719,24 @@
             });
         }
 
-        function updatePushTimeOnServer() {
+        // Спринт 2: Фильтрация архива по введенному тексту (названию бизнеса или содержанию)
+        function filterArchive() {
+            const query = document.getElementById('archive-search-input').value.toLowerCase().trim();
+            if (!query) {
+                renderArchive(globalHistoryCache);
+                return;
+            }
+            const filtered = globalHistoryCache.filter(item => 
+                (item.input_text && item.input_text.toLowerCase().includes(query)) ||
+                (item.report_text && item.report_text.toLowerCase().includes(query))
+            );
+            renderArchive(filtered);
+        }
+
+        function updatePushSettingsOnServer() {
             const pushTime = document.getElementById('push_time').value;
+            const pushFrequency = document.getElementById('push_frequency').value;
+            
             fetch(`${BACKEND_URL}/api/analyze`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -714,6 +744,7 @@
                     user_id: userTelegramId,
                     username: userTelegramName,
                     push_time: pushTime,
+                    push_frequency: pushFrequency,
                     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone 
                 })
             }).catch(e => console.error(e));
@@ -767,6 +798,7 @@
             const bizForm = document.getElementById('biz_form').value;
             const description = document.getElementById('description').value.trim();
             const pushTime = document.getElementById('push_time').value;
+            const pushFrequency = document.getElementById('push_frequency').value;
 
             if (!location) { return alert('Укажите локацию!'); }
 
@@ -783,6 +815,7 @@
                 legal_form: bizForm,
                 business_details: description || "Project Site",
                 push_time: pushTime,
+                push_frequency: pushFrequency,
                 timezone: Intl.DateTimeFormat().resolvedOptions().timeZone 
             };
 
