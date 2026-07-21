@@ -530,13 +530,19 @@
         }
 
         // Обработка записи аудио сообщений
-        function toggleVoiceRecording() {
+function toggleVoiceRecording() {
             const micBtn = document.getElementById('mic-btn');
             
             if (mediaRecorder && mediaRecorder.state === "recording") {
                 mediaRecorder.stop();
                 micBtn.classList.remove('recording');
                 micBtn.innerHTML = `<i class="fa-solid fa-microphone"></i>`;
+                
+                // Выключаем аппаратный доступ к микрофону, чтобы пропал красный кружок
+                if (mediaRecorder && mediaRecorder.stream) {
+                    mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                }
+                
                 return;
             }
 
