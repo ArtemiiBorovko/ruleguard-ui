@@ -75,9 +75,17 @@ def init_db():
                 location TEXT,
                 legal_form TEXT,
                 timezone TEXT DEFAULT 'UTC',
+                last_push_date DATE,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         '''))
+        
+        # Безопасное обновление старой таблицы (добавление колонки, если её нет)
+        try:
+            conn.execute(text("ALTER TABLE users ADD COLUMN last_push_date DATE;"))
+        except Exception:
+            pass # Колонка уже существует, всё в порядке
+
         conn.execute(text('''
             CREATE TABLE IF NOT EXISTS reports (
                 id SERIAL PRIMARY KEY,
@@ -686,29 +694,54 @@ def get_admin_dashboard(admin: str = Depends(get_current_admin)):
 def send_daily_push_notifications():
     try:
         with engine.connect() as conn:
-            result = conn.execute(text("SELECT user_id, user_name, business_description, location, push_time, timezone, country, legal_form FROM users"))
+            # Добавили извлечение last_push_date
+            result = conn.execute(text("SELECT user_id, user_name, business_description, location, push_time, timezone, country, legal_form, last_push_date FROM users"))
             all_users = result.fetchall()
         
         for user in all_users:
-            user_id, username, business, location, push_time, user_tz, country, legal_form = user
+            user_id, username, business, location, push_time, user_tz, country, legal_form, last_push_date = user
             if not location or not business: continue
             if not user_tz: user_tz = 'UTC'
                 
             tz = pytz.timezone(user_tz)
-            if datetime.now(tz).strftime("%H:%M") == push_time:
-                search_query = f"{country or ''} {location or ''} {legal_form or ''} {business or ''}"
-                web_data = search_internet(search_query)
-                
-                messages = [
-                    {"role": "system", "content": "Ты — ИИ-юрист RuleGuard. Напиши очень краткую сводку законов на сегодня (2-3 предложения)."},
-                    {"role": "user", "content": f"Бизнес: {business}, Локация: {location}. Данные: {web_data}"}
-                ]
-                bot_response = safe_groq_request(messages, temperature=0.4)
-                
-                try:
-                    bot.send_message(user_id, f"🛡️ <b>Ежедневный RuleGuard Радар</b>\n\n{bot_response}", parse_mode="HTML")
-                except Exception:
-                    bot.send_message(user_id, f"🛡️ Ежедневный RuleGuard Радар\n\n{bot_response}")
+            now_tz = datetime.now(tz)
+            today_date = now_tz.date()
+            
+            # Парсим время из настроек пользователя (например "09:00" -> 9 и 0)
+            try:
+                push_hour, push_minute = map(int, push_time.split(':'))
+            except Exception:
+                push_hour, push_minute = 9, 0 # Fallback на 09:00 при ошибке
+            
+            # Логика: Время пришло (или уже прошло) И сегодня пуш еще не отправлялся
+            if (now_tz.hour > push_hour or (now_tz.hour == push_hour and now_tz.minute >= push_minute)):
+                if last_push_date != today_date:
+                    
+                    # 1. Генерируем и отправляем отчет
+                    search_query = f"{country or ''} {location or ''} {legal_form or ''} {business or ''}"
+                    web_data = search_internet(search_query)
+                    
+                    messages = [
+                        {"role": "system", "content": "Ты — ИИ-юрист RuleGuard. Напиши очень краткую сводку законов на сегодня (2-3 предложения)."},
+                        {"role": "user", "content": f"Бизнес: {business}, Локация: {location}. Данные: {web_data}"}
+                    ]
+                    bot_response = safe_groq_request(messages, temperature=0.4)
+                    
+                    try:
+                        bot.send_message(user_id, f"🛡️ <b>Ежедневный RuleGuard Радар</b>\n\n{bot_response}", parse_mode="HTML")
+                    except Exception:
+                        bot.send_message(user_id, f"🛡️ Ежедневный RuleGuard Радар\n\n{bot_response}")
+                    
+                    # 2. Обязательно записываем в БД, что пуш на сегодня отправлен
+                    try:
+                        with engine.begin() as update_conn:
+                            update_conn.execute(
+                                text("UPDATE users SET last_push_date = :today WHERE user_id = :uid"), 
+                                {"today": today_date, "uid": user_id}
+                            )
+                    except Exception as db_err:
+                        print(f"Ошибка обновления даты пуша для {user_id}: {db_err}")
+
     except Exception as e:
         print(f"Ошибка планировщика пушей: {e}")
 
