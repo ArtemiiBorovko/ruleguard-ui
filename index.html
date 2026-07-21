@@ -282,6 +282,18 @@
             cursor: pointer;
         }
 
+        /* --- СПРИНТ 3: Стили окна онбординга --- */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(4px);
+            z-index: 2000; display: flex; align-items: center; justify-content: center;
+            padding: 20px; animation: fadeIn 0.3s ease forwards;
+        }
+        .modal-card {
+            width: 100%; max-width: 360px; margin-bottom: 0 !important;
+            border: 1px solid var(--accent-color) !important;
+        }
+
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
@@ -299,6 +311,29 @@
     </style>
 </head>
 <body>
+
+    <!-- --- СПРИНТ 3: Окно Онбординга --- -->
+    <div id="onboarding-modal" class="modal-overlay" style="display: none;">
+        <div class="card modal-card">
+            <div style="text-align: center; margin-bottom: 12px;">
+                <i class="fa-solid fa-wand-magic-sparkles" style="font-size: 40px; color: var(--accent-color);"></i>
+            </div>
+            <h3 style="margin: 0 0 8px 0; text-align: center;">Добро пожаловать!</h3>
+            <p style="color: var(--text-muted); font-size: 13.5px; line-height: 1.5; text-align: center; margin: 0 0 16px 0;">
+                Вам больше не нужно вручную заполнять длинные формы параметров бизнеса.
+            </p>
+            <div style="background: var(--input-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 12px; margin-bottom: 16px; font-size: 13px; line-height: 1.4;">
+                <i class="fa-solid fa-lightbulb" style="color: #FFCC00; margin-right: 4px;"></i>
+                <b>Как это работает:</b><br>
+                Просто отправьте текстовое или <b>голосовое сообщение</b> в чат. Например:
+                <i style="display:block; margin-top:6px; color: var(--text-muted);">«У меня ООО в Москве, 8 сотрудников. Включи светлую тему и ставь пуши на 10:00»</i>
+            </div>
+            <button class="btn-submit" onclick="closeOnboardingModal()">
+                <i class="fa-solid fa-rocket"></i> Начать работу
+            </button>
+        </div>
+    </div>
+    <!-- --------------------------------- -->
 
     <div class="container">
         
@@ -329,7 +364,7 @@
             <div class="card" id="webapp-chat-card">
                 <h4 style="margin: 0 0 8px 0;"><i class="fa-solid fa-comments" style="color: #30D158;"></i> Обсуждение и аудит файлов:</h4>
                 <div class="chat-container" id="chat-messages-box">
-                    <div class="chat-msg assistant">Задайте любой уточняющий вопрос или прикрепите документ (PDF/DOCX) на экспресс-аудит рисков прямо здесь.</div>
+                    <div class="chat-msg assistant">Задайте любой уточняющий вопрос, надиктуйте данные о бизнесе или прикрепите документ.</div>
                 </div>
                 <div class="chat-input-row">
                     <input type="file" id="chat-file-input" accept=".pdf,.docx" style="display:none;" onchange="handleFileSelected()">
@@ -466,6 +501,20 @@
         let audioChunks = [];
         let globalHistoryCache = []; // Кэш для поиска по архиву
 
+        // --- СПРИНТ 3: Логика Онбординга ---
+        function checkOnboardingStatus(profileData) {
+            const onboardingSeen = localStorage.getItem('ruleguard_onboarding_seen');
+            if (!onboardingSeen) {
+                document.getElementById('onboarding-modal').style.display = 'flex';
+            }
+        }
+
+        function closeOnboardingModal() {
+            localStorage.setItem('ruleguard_onboarding_seen', 'true');
+            document.getElementById('onboarding-modal').style.display = 'none';
+        }
+        // -----------------------------------
+
         document.getElementById('chat-user-input').addEventListener('input', function() {
             const sendBtn = document.getElementById('chat-send-btn');
             if (this.value.trim().length > 0) {
@@ -520,6 +569,9 @@
                     } else {
                         document.getElementById('ai-live-output').innerText = "Здесь отобразится информация после заполнения параметров бизнеса.";
                     }
+                    
+                    // Вызов проверки онбординга
+                    checkOnboardingStatus(data); 
                 }
             })
             .catch(err => {
@@ -580,6 +632,18 @@
             .then(data => {
                 if (data.status === 'success') {
                     box.innerHTML += `<div class="chat-msg assistant">${data.report}</div>`;
+                    
+                    // --- СПРИНТ 3: Реакция интерфейса на ИИ-команды из текста ---
+                    if (data.action === 'settings_updated') {
+                        if (data.updated_fields && data.updated_fields.theme) {
+                            if (data.updated_fields.theme === 'light' && !document.body.hasAttribute('data-theme')) toggleTheme();
+                            else if (data.updated_fields.theme === 'dark' && document.body.hasAttribute('data-theme')) toggleTheme();
+                        }
+                        loadDataFromServer();
+                    } else if (data.action === 'profile_updated') {
+                        loadDataFromServer();
+                    }
+                    // -------------------------------------------------------------
                 } else {
                     box.innerHTML += `<div class="chat-msg assistant"><i class="fa-solid fa-triangle-exclamation"></i> Ошибка: ${data.message}</div>`;
                 }
@@ -691,6 +755,18 @@
                 document.getElementById('voice-loading-msg')?.remove();
                 if (data.status === 'success') {
                     box.innerHTML += `<div class="chat-msg assistant"><i>Текст вашего аудио: "${data.user_text}"</i>\n\n${data.report}</div>`;
+                    
+                    // --- СПРИНТ 3: Реакция интерфейса на ИИ-команды из ГОЛОСА ---
+                    if (data.action === 'settings_updated') {
+                        if (data.updated_fields && data.updated_fields.theme) {
+                            if (data.updated_fields.theme === 'light' && !document.body.hasAttribute('data-theme')) toggleTheme();
+                            else if (data.updated_fields.theme === 'dark' && document.body.hasAttribute('data-theme')) toggleTheme();
+                        }
+                        loadDataFromServer();
+                    } else if (data.action === 'profile_updated') {
+                        loadDataFromServer();
+                    }
+                    // -------------------------------------------------------------
                 } else {
                     box.innerHTML += `<div class="chat-msg assistant"><i class="fa-solid fa-triangle-exclamation"></i> Ошибка аудио: ${data.message}</div>`;
                 }
