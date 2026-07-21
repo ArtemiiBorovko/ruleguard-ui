@@ -596,17 +596,40 @@ def get_admin_stats(admin: str = Depends(get_current_admin)):
             chat_count = conn.execute(text("SELECT COUNT(*) FROM chat_history WHERE role = 'user'")).scalar()
             groq_requests = {"labels": ["Анализ бизнеса", "Диалоги в чате"], "data": [reports_count, chat_count]}
 
+            # Детальная таблица пользователей для анализа целевой аудитории
+            users_query = text("""
+                SELECT u.user_id, u.user_name, u.country, u.location, u.legal_form, u.business_description, u.push_time, u.timezone,
+                       (SELECT COUNT(*) FROM reports r WHERE r.user_id = u.user_id) as reports_count,
+                       (SELECT COUNT(*) FROM chat_history c WHERE c.user_id = u.user_id AND c.role = 'user') as chat_count
+                FROM users u
+            """)
+            users_res = conn.execute(users_query).fetchall()
+            users_details = []
+            for row in users_res:
+                users_details.append({
+                    "user_id": row[0],
+                    "user_name": row[1] or "Без имени",
+                    "country": row[2] or "-",
+                    "location": row[3] or "-",
+                    "legal_form": row[4] or "-",
+                    "business_description": row[5] or "-",
+                    "push_time": row[6] or "-",
+                    "timezone": row[7] or "-",
+                    "reports_count": row[8],
+                    "chat_count": row[9]
+                })
+
         return {
             "status": "success",
             "total_users": total_users,
             "locations": locations,
             "pushes": pushes,
-            "groq_requests": groq_requests
+            "groq_requests": groq_requests,
+            "users_details": users_details
         }
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-# Дублируем роут со слэшем и без, чтобы избежать ERR_TOO_MANY_RETRIES на Render
 @app.get("/admin", response_class=HTMLResponse)
 def get_admin_dashboard(admin: str = Depends(get_current_admin)):
     return """
@@ -619,22 +642,36 @@ def get_admin_dashboard(admin: str = Depends(get_current_admin)):
         <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
         <style>
             body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #ffffff; margin: 0; padding: 20px; }
-            .header { text-align: center; margin-bottom: 30px; }
-            .header h1 { margin: 0; color: #4CAF50; }
-            .stat-box { background: #1e1e1e; padding: 20px; border-radius: 10px; text-align: center; margin-bottom: 20px; }
-            .stat-box h2 { font-size: 3rem; margin: 10px 0; color: #4CAF50; }
-            .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
-            .chart-container { background: #1e1e1e; padding: 20px; border-radius: 10px; }
+            .header { text-align: center; margin-bottom: 30px; display: flex; align-items: center; justify-content: center; gap: 15px; }
+            .header h1 { margin: 0; color: #34C759; font-size: 2rem; }
+            .logo-svg { width: 45px; height: 55px; }
+            .logo-svg path { fill: #34C759; }
+            .stat-box { background: #1e1e1e; padding: 20px; border-radius: 10px; text-align: center; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+            .stat-box h2 { font-size: 3rem; margin: 10px 0; color: #34C759; }
+            .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 20px; }
+            .chart-container { background: #1e1e1e; padding: 20px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+            .table-container { background: #1e1e1e; padding: 20px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); overflow-x: auto; }
+            table { width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; }
+            th, td { padding: 12px; border-bottom: 1px solid #2a2a2a; }
+            th { color: #34C759; font-weight: 600; text-transform: uppercase; font-size: 12px; }
+            tr:hover { background: #25252a; }
+            .badge-report { background: #FF9800; color: #000; padding: 3px 8px; border-radius: 6px; font-weight: bold; }
+            .badge-chat { background: #34C759; color: #000; padding: 3px 8px; border-radius: 6px; font-weight: bold; }
         </style>
     </head>
     <body>
         <div class="header">
-            <h1>🛡️ RuleGuard Admin</h1>
-            <p>Панель мониторинга активности</p>
+            <svg class="logo-svg" viewBox="0 0 1185 1437" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path fill-rule="evenodd" clip-rule="evenodd" d="M591.223 0L74.8181 148.822C34.9697 159.499 0 199.712 0 245.253V776.295C0 1050.35 332.613 1319.88 591.223 1436.17C850.644 1310.93 1176.75 1069.4 1184.07 777.451V246.41C1184.07 204.935 1158.05 164.273 1109.25 148.822L591.223 0ZM398.956 839.257V1160C458.844 1210.78 519.1 1257.01 591.223 1289.79C667.667 1248.31 728.659 1210.91 804.29 1151.54L590.065 839.257H398.956ZM748.99 820.553L906 1051.5C973.557 972.557 1057.82 888.305 1055.36 777.117L1055.58 267.219L591.44 134.184L128.493 267.212V777.451C133.697 911.472 219.575 1014.37 269.995 1057.2V331.262L640.83 330.173C984.828 330.173 1001.09 732.724 748.99 820.553ZM398.704 710.766L398.486 458.664H657.094C840.072 458.664 834.597 710.766 657.312 710.766H398.704Z"/>
+            </svg>
+            <div>
+                <h1>RuleGuard AI</h1>
+                <p style="margin: 0; color: #8E8E93; font-size: 13px;">Панель мониторинга и аналитики аудитории</p>
+            </div>
         </div>
         
         <div class="stat-box">
-            <h3>Всего пользователей</h3>
+            <h3>Всего пользователей в системе</h3>
             <h2 id="totalUsers">...</h2>
         </div>
 
@@ -650,6 +687,25 @@ def get_admin_dashboard(admin: str = Depends(get_current_admin)):
             </div>
         </div>
 
+        <div class="table-container">
+            <h3 style="margin-top: 0; color: #34C759;"><i class="fa-solid fa-users"></i> Детальные данные пользователей (Целевая аудитория)</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>ID / Имя</th>
+                        <th>Локация</th>
+                        <th>Бизнес (Форма / Описание)</th>
+                        <th>Пуш-время</th>
+                        <th>Анализ бизнеса</th>
+                        <th>Диалоги в чате</th>
+                    </tr>
+                </thead>
+                <tbody id="usersTableBody">
+                    <tr><td colspan="6" style="text-align: center; color: #8E8E93;">Загрузка данных...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
         <script>
             Chart.defaults.color = '#fff';
             
@@ -659,11 +715,31 @@ def get_admin_dashboard(admin: str = Depends(get_current_admin)):
                 
                 document.getElementById('totalUsers').innerText = data.total_users;
 
+                // Заполнение таблицы пользователей
+                const tableBody = document.getElementById('usersTableBody');
+                tableBody.innerHTML = '';
+                if (data.users_details && data.users_details.length > 0) {
+                    data.users_details.forEach(u => {
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td><b>${u.user_name}</b><br><span style="color: #8E8E93; font-size: 11px;">ID: ${u.user_id}</span></td>
+                            <td>${u.country} / ${u.location}</td>
+                            <td><b>${u.legal_form}</b><br><span style="color: #bbb; font-size: 12px;">${u.business_description}</span></td>
+                            <td>${u.push_time} <span style="color:#8E8E93; font-size:11px;">(${u.timezone})</span></td>
+                            <td><span class="badge-report">${u.reports_count}</span></td>
+                            <td><span class="badge-chat">${u.chat_count}</span></td>
+                        `;
+                        tableBody.appendChild(tr);
+                    });
+                } else {
+                    tableBody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #8E8E93;">Нет зарегистрированных пользователей.</td></tr>`;
+                }
+
                 new Chart(document.getElementById('locationsChart'), {
                     type: 'bar',
                     data: {
                         labels: data.locations.labels,
-                        datasets: [{ label: 'Пользователи по городам', data: data.locations.data, backgroundColor: '#4CAF50' }]
+                        datasets: [{ label: 'Пользователи по городам', data: data.locations.data, backgroundColor: '#34C759' }]
                     }
                 });
 
@@ -671,7 +747,7 @@ def get_admin_dashboard(admin: str = Depends(get_current_admin)):
                     type: 'line',
                     data: {
                         labels: data.pushes.labels,
-                        datasets: [{ label: 'Время рассылки (UTC)', data: data.pushes.data, borderColor: '#2196F3', tension: 0.3 }]
+                        datasets: [{ label: 'Время рассылки (UTC)', data: data.pushes.data, borderColor: '#30D158', tension: 0.3 }]
                     }
                 });
 
@@ -679,9 +755,9 @@ def get_admin_dashboard(admin: str = Depends(get_current_admin)):
                     type: 'doughnut',
                     data: {
                         labels: data.groq_requests.labels,
-                        datasets: [{ data: data.groq_requests.data, backgroundColor: ['#FF9800', '#F44336'] }]
+                        datasets: [{ data: data.groq_requests.data, backgroundColor: ['#34C759', '#0A84FF'] }]
                     },
-                    options: { plugins: { title: { display: true, text: 'Нагрузка на API Groq' } } }
+                    options: { plugins: { title: { display: true, text: 'Нагрузка на API (Использование)' } } }
                 });
             }
             
