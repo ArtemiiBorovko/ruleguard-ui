@@ -72,6 +72,7 @@ def init_db():
                 user_name TEXT, 
                 business_description TEXT, 
                 push_time TEXT DEFAULT '09:00',
+                push_frequency TEXT DEFAULT 'daily',
                 country TEXT,
                 location TEXT,
                 legal_form TEXT,
@@ -112,7 +113,7 @@ def init_db():
     # Если колонка уже существует, ошибка тихо перехватится и ничего не сломает
     try:
         with engine.begin() as conn:
-            conn.execute(text("ALTER TABLE users ADD COLUMN last_push_date DATE;"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN push_frequency TEXT DEFAULT 'daily';"))
     except Exception:
         pass
 
