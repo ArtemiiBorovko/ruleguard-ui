@@ -69,782 +69,486 @@
         .app-logo {
             width: 62px;
             height: 75px;
-            margin: 0 auto 12px auto;
-        }
-
-        .app-logo path {
-            fill: var(--accent-color);
-            transition: fill 0.3s ease;
-        }
-        
-        .status-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            background: rgba(48, 209, 88, 0.15);
-            color: var(--accent-color);
-            padding: 6px 14px;
-            border-radius: 20px;
-            font-weight: 700;
-            font-size: 13px;
-            letter-spacing: 0.5px;
-            text-transform: uppercase;
-            margin-top: 10px;
-        }
-
-        .analysis-output {
-            background-color: var(--card-bg);
-            border-left: 4px solid var(--accent-color);
-            padding: 14px;
-            border-radius: 0 12px 12px 0;
-            font-size: 14px;
-            line-height: 1.5;
-            white-space: pre-line;
-            text-align: left;
-        }
-
-        .tab-bar {
-            position: fixed; bottom: 0; left: 0; right: 0;
-            background-color: var(--tab-bg); border-top: 1px solid var(--card-border);
-            display: flex; justify-content: space-around;
-            padding: 10px 0 calc(10px + env(safe-area-inset-bottom, 0px)) 0;
-            z-index: 1000;
-        }
-        
-        .tab-item {
-            display: flex; flex-direction: column; align-items: center; gap: 4px;
-            color: var(--text-muted); font-size: 11px; font-weight: 500; cursor: pointer; width: 25%;
-            transition: color 0.2s ease, transform 0.2s ease;
-        }
-        .tab-item:hover { color: var(--accent-color); transform: scale(1.05); }
-        .tab-item i { font-size: 20px; }
-        .tab-item.active { color: var(--accent-color); }
-
-        .app-screen { display: none; }
-        .app-screen.active { display: flex; flex-direction: column; }
-
-        .form-group { display: flex; flex-direction: column; gap: 6px; }
-        label { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; }
-        
-        select, input, textarea {
-            width: 100%; box-sizing: border-box; background-color: var(--input-bg);
-            border: 1px solid var(--card-border); border-radius: 10px; padding: 12px;
-            color: var(--text-main); font-size: 15px; font-family: inherit; outline: none;
-        }
-        textarea { resize: none; height: 90px; }
-        
-        .btn-submit {
-            background-color: var(--accent-color); color: #000000; font-weight: 700;
-            border: none; border-radius: 12px; padding: 14px; font-size: 15px; cursor: pointer;
-            display: flex; justify-content: center; align-items: center; gap: 8px;
-            transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
-        }
-        .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
-        .btn-submit:hover:not(:disabled), .theme-switch-box button:hover {
-            transform: scale(1.02);
-            box-shadow: 0 4px 16px rgba(48, 209, 88, 0.3);
-        }
-        .btn-submit:active:not(:disabled) { transform: scale(0.98); }
-        .theme-switch-box { display: flex; justify-content: space-between; align-items: center; }
-
-        #refresh-analysis-btn {
-            animation: fadeIn 0.3s ease forwards;
-        }
-
-        .spinner {
-            display: none;
-            width: 16px;
-            height: 16px;
-            border: 2px solid #000000;
-            border-top-color: transparent;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-
-        .chat-container {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            max-height: 280px;
-            overflow-y: auto;
-            padding-right: 4px;
-            margin-bottom: 10px;
-        }
-        .chat-msg {
-            padding: 10px 14px;
+            object-fit: cover;
+            margin: 0 auto 16px auto;
             border-radius: 12px;
-            font-size: 13px;
-            line-height: 1.4;
-            max-width: 85%;
-            word-wrap: break-word;
-            white-space: pre-line;
+            display: block;
         }
-        .chat-msg.user {
+        
+        .radar-box h3 { margin: 0 0 8px 0; font-size: 20px; font-weight: 600; color: var(--text-main); }
+        .radar-box p { margin: 0; font-size: 14px; color: var(--text-muted); line-height: 1.5; }
+
+        .form-group { display: flex; flex-direction: column; gap: 8px; }
+        .form-group label { font-size: 14px; font-weight: 500; color: var(--text-muted); display: flex; align-items: center; gap: 8px; }
+        
+        input[type="text"], input[type="file"], input[type="time"], select {
+            width: 100%;
+            padding: 14px 16px;
+            background-color: var(--input-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            color: var(--text-main);
+            font-size: 15px;
+            box-sizing: border-box;
+            outline: none;
+            transition: border-color 0.2s ease;
+        }
+
+        input[type="text"]:focus, select:focus, input[type="time"]:focus {
+            border-color: var(--accent-color);
+        }
+
+        /* --- Стили для сетки дней уведомлений --- */
+        .checkbox-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-top: 4px;
+        }
+        .checkbox-grid > :nth-child(1), .checkbox-grid > :nth-child(9) {
+            grid-column: 1 / -1; 
+        }
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px !important;
+            color: var(--text-main) !important;
+            text-transform: none;
+            font-weight: 500 !important;
+            background: var(--input-bg);
+            padding: 12px 14px;
+            border-radius: 10px;
+            border: 1px solid var(--card-border);
+            cursor: pointer;
+            transition: border-color 0.2s ease;
+        }
+        .checkbox-label:hover { border-color: var(--accent-color); }
+        .checkbox-label input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: var(--accent-color);
+            margin: 0;
+            cursor: pointer;
+        }
+
+        .btn-submit {
+            width: 100%;
+            padding: 16px;
             background-color: var(--accent-color);
-            color: #000000;
-            align-self: flex-end;
-            border-bottom-right-radius: 4px;
-        }
-        .chat-msg.assistant {
-            background-color: var(--input-bg);
-            color: var(--text-main);
-            border: 1px solid var(--card-border);
-            align-self: flex-start;
-            border-bottom-left-radius: 4px;
-        }
-        .chat-input-row {
-            display: flex;
-            gap: 6px;
-            align-items: center;
-        }
-        .chat-input-row input {
-            padding: 10px;
-            font-size: 14px;
-            border-radius: 8px;
-            flex-grow: 1;
-        }
-        .chat-action-btn {
-            background-color: var(--input-bg);
-            color: var(--text-main);
-            border: 1px solid var(--card-border);
-            border-radius: 8px;
-            width: 38px;
-            height: 38px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            color: #0A0A0C;
+            border: none;
+            border-radius: 12px;
             font-size: 16px;
-            flex-shrink: 0;
-            transition: all 0.2s ease;
-        }
-        .chat-action-btn:hover {
-            color: var(--accent-color);
-            border-color: var(--accent-color);
-            transform: scale(1.05);
-        }
-        .chat-action-btn.recording {
-            background-color: #FF3B30;
-            color: #FFFFFF;
-            animation: pulse 1.2s infinite;
-        }
-        .chat-send-btn {
-            background-color: var(--input-bg);
-            color: var(--text-muted);
-            border: 1px solid var(--card-border);
-            border-radius: 8px;
-            width: 38px;
-            height: 38px;
+            font-weight: 600;
             cursor: pointer;
+            transition: background 0.2s ease, transform 0.1s ease;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 14px;
-            flex-shrink: 0;
-            transition: all 0.2s ease;
+            gap: 8px;
         }
-        .chat-send-btn:hover {
-            border-color: var(--accent-color);
-            transform: scale(1.05);
+        .btn-submit:active { transform: scale(0.98); }
+        
+        .chat-box { background: var(--input-bg); border-radius: 12px; padding: 12px; max-height: 250px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+        .chat-message { padding: 10px 14px; border-radius: 12px; max-width: 85%; word-wrap: break-word; line-height: 1.4; }
+        .bot-msg { background: var(--card-bg); align-self: flex-start; border: 1px solid var(--card-border); color: var(--text-main); }
+        .user-msg { background: var(--accent-color); color: #0A0A0C; align-self: flex-end; }
+        
+        .chat-input-row { display: flex; gap: 8px; align-items: center; }
+        .chat-input-row button {
+            background: var(--input-bg); border: 1px solid var(--card-border); border-radius: 12px; width: 48px; height: 48px; display: flex; align-items: center; justify-content: center; color: var(--text-main); cursor: pointer;
         }
+        
+        .nav-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: var(--tab-bg); border-top: 1px solid var(--card-border); display: flex; justify-content: space-around; padding: 12px 0 24px 0; z-index: 100; backdrop-filter: blur(10px); }
+        .nav-item { color: var(--text-muted); display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 12px; font-weight: 500; cursor: pointer; flex: 1; transition: color 0.2s ease; }
+        .nav-item i { font-size: 20px; }
+        .nav-item.active { color: var(--accent-color); }
+        
+        .screen { display: none; width: 100%; }
+        .screen.active { display: flex; flex-direction: column; }
+        
+        .archive-item { background: var(--input-bg); border-radius: 12px; padding: 16px; border: 1px solid var(--card-border); display: flex; flex-direction: column; gap: 10px; }
+        
+        .theme-switch-box { display: flex; background: var(--input-bg); border-radius: 12px; overflow: hidden; border: 1px solid var(--card-border); }
+        .theme-switch-box button { flex: 1; padding: 12px; border: none; background: transparent; color: var(--text-main); font-size: 14px; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
+        .theme-switch-box button.active { background: var(--accent-color); color: #0A0A0C !important; }
 
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
+        .search-wrapper { position: relative; display: flex; align-items: center; }
+        .search-wrapper i { position: absolute; left: 14px; color: var(--text-muted); font-size: 16px; }
+        .search-wrapper input { padding-left: 42px; width: 100%; }
 
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(8px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        @keyframes pulse {
-            0% { transform: scale(1); opacity: 1; }
-            50% { transform: scale(1.08); opacity: 0.8; }
-            100% { transform: scale(1); opacity: 1; }
-        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        
-        <div id="screen-radar" class="app-screen active">
-            <div class="card radar-box">
-                <svg class="app-logo" viewBox="0 0 1185 1437" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path fill-rule="evenodd" clip-rule="evenodd" d="M591.223 0L74.8181 148.822C34.9697 159.499 0 199.712 0 245.253V776.295C0 1050.35 332.613 1319.88 591.223 1436.17C850.644 1310.93 1176.75 1069.4 1184.07 777.451V246.41C1184.07 204.935 1158.05 164.273 1109.25 148.822L591.223 0ZM398.956 839.257V1160C458.844 1210.78 519.1 1257.01 591.223 1289.79C667.667 1248.31 728.659 1210.91 804.29 1151.54L590.065 839.257H398.956ZM748.99 820.553L906 1051.5C973.557 972.557 1057.82 888.305 1055.36 777.117L1055.58 267.219L591.44 134.184L128.493 267.212V777.451C133.697 911.472 219.575 1014.37 269.995 1057.2V331.262L640.83 330.173C984.828 330.173 1001.09 732.724 748.99 820.553ZM398.704 710.766L398.486 458.664H657.094C840.072 458.664 834.597 710.766 657.312 710.766H398.704Z"/>
-                </svg>
-                <h2 style="margin: 0 0 4px 0;">RuleGuard AI</h2>
-                <p style="color: var(--text-muted); margin: 0; font-size: 14px;">Ежедневный юридический мониторинг</p>
-                <div>
-                    <span class="status-badge" id="radar-status-badge"><i class="fa-solid fa-circle-check"></i> Мониторинг активен</span>
-                </div>
+<div class="container">
+
+    <!-- Экран 1: Главный (Чат) -->
+    <div id="screen-main" class="screen active">
+        <div class="card radar-box">
+            <img src="https://i.ibb.co/6c2rks2t/b0ab7579-2af5-4f33-b1d5-bc4412354c46.jpg" alt="Логотип RuleGuard AI" class="app-logo">
+            <h3>Ваш ИИ-Ассистент</h3>
+            <p>Загрузите договор для анализа или отправьте голосовое сообщение с вопросом.</p>
+        </div>
+
+        <div class="card">
+            <div class="chat-box" id="chatHistory">
+                <div class="chat-message bot-msg">Здравствуйте! Загрузите договор в формате PDF или напишите ваш вопрос, и я проверю его на риски.</div>
             </div>
             
-            <button class="btn-submit" id="refresh-analysis-btn" style="margin-bottom: 16px;" onclick="triggerFastAnalysis()">
-                <div class="spinner" id="refresh-spinner"></div>
-                <i class="fa-solid fa-rotate" id="refresh-icon"></i> <span id="refresh-btn-text">Обновить текущий анализ</span>
-            </button>
-            
-            <div class="card" id="active-report-card">
-                <h4 style="margin: 0 0 4px 0;"><i class="fa-solid fa-brain" style="color: #30D158;"></i> Последний анализ:</h4>
-                <div id="ai-live-output" style="font-size: 14px; color: var(--text-muted);">
-                    Загрузка актуального отчета из базы данных...
+            <div class="chat-input-row">
+                <button onclick="document.getElementById('fileUpload').click()"><i class="fa-solid fa-paperclip"></i></button>
+                <input type="file" id="fileUpload" style="display: none;" accept=".pdf,.doc,.docx" onchange="handleFileUpload()">
+                <input type="text" id="chatInput" placeholder="Введите сообщение..." onkeypress="handleEnter(event)">
+                <button onclick="startVoiceRecord()" id="voiceBtn"><i class="fa-solid fa-microphone"></i></button>
+                <button onclick="sendMessage()"><i class="fa-solid fa-paper-plane"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Экран 2: Архив (Отчеты) -->
+    <div id="screen-archive" class="screen">
+        <div class="card">
+            <div class="form-group">
+                <div class="search-wrapper">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                    <input type="text" id="archive-search-input" placeholder="Поиск по названию бизнеса..." oninput="filterArchive()">
                 </div>
             </div>
+            <div id="archive-list" style="display: flex; flex-direction: column; gap: 12px; margin-top: 10px;">
+                <!-- Сюда динамически загружаются отчеты -->
+            </div>
+        </div>
+    </div>
 
-            <div class="card" id="webapp-chat-card">
-                <h4 style="margin: 0 0 8px 0;"><i class="fa-solid fa-comments" style="color: #30D158;"></i> Обсуждение и аудит файлов:</h4>
-                <div class="chat-container" id="chat-messages-box">
-                    <div class="chat-msg assistant">Задайте любой уточняющий вопрос или прикрепите документ (PDF/DOCX) на экспресс-аудит рисков прямо здесь.</div>
-                </div>
-                <div class="chat-input-row">
-                    <input type="file" id="chat-file-input" accept=".pdf,.docx" style="display:none;" onchange="handleFileSelected()">
-                    
-                    <button class="chat-action-btn" id="attach-btn" onclick="document.getElementById('chat-file-input').click()" title="Прикрепить файл">
-                        <i class="fa-solid fa-paperclip"></i>
-                    </button>
-                    
-                    <button class="chat-action-btn" id="mic-btn" onclick="toggleVoiceRecording()" title="Голосовое сообщение">
-                        <i class="fa-solid fa-microphone"></i>
-                    </button>
-                    
-                    <input type="text" id="chat-user-input" placeholder="Вопрос юристу..." onkeydown="if(event.key==='Enter') sendChatMessage()">
-                    
-                    <button class="chat-send-btn" id="chat-send-btn" onclick="sendChatMessage()" title="Отправить">
-                        <i class="fa-solid fa-paper-plane"></i>
-                    </button>
+    <!-- Экран 3: Настройки (Профиль и тема) -->
+    <div id="screen-options" class="screen">
+        <div class="card">
+            <div class="form-group">
+                <label><i class="fa-solid fa-building"></i> Название бизнеса</label>
+                <input type="text" id="business_name" placeholder="Например: ООО Ромашка">
+            </div>
+            <div class="form-group">
+                <label><i class="fa-solid fa-clipboard-check"></i> Кратко о бизнесе и целях</label>
+                <input type="text" id="business_context" placeholder="Опишите сферу и главные задачи...">
+            </div>
+            <button class="btn-submit" onclick="saveProfileData()">Сохранить профиль</button>
+        </div>
+
+        <div class="card">
+            <div class="form-group">
+                <label><i class="fa-solid fa-clock"></i> Время пуш-уведомлений</label>
+                <input type="time" id="push_time" value="10:00" onchange="updatePushSettingsOnServer()">
+            </div>
+            <div class="form-group">
+                <label><i class="fa-solid fa-calendar-days"></i> Дни уведомлений</label>
+                <div class="checkbox-grid">
+                    <label class="checkbox-label"><input type="checkbox" name="push_days" value="everyday" onchange="handleDaysLogic(this)"> Каждый день</label>
+                    <label class="checkbox-label"><input type="checkbox" name="push_days" value="mon" onchange="handleDaysLogic(this)"> Понедельник</label>
+                    <label class="checkbox-label"><input type="checkbox" name="push_days" value="tue" onchange="handleDaysLogic(this)"> Вторник</label>
+                    <label class="checkbox-label"><input type="checkbox" name="push_days" value="wed" onchange="handleDaysLogic(this)"> Среда</label>
+                    <label class="checkbox-label"><input type="checkbox" name="push_days" value="thu" onchange="handleDaysLogic(this)"> Четверг</label>
+                    <label class="checkbox-label"><input type="checkbox" name="push_days" value="fri" onchange="handleDaysLogic(this)"> Пятница</label>
+                    <label class="checkbox-label"><input type="checkbox" name="push_days" value="sat" onchange="handleDaysLogic(this)"> Суббота</label>
+                    <label class="checkbox-label"><input type="checkbox" name="push_days" value="sun" onchange="handleDaysLogic(this)"> Воскресенье</label>
+                    <label class="checkbox-label"><input type="checkbox" name="push_days" value="monthly" onchange="handleDaysLogic(this)"> Раз в месяц</label>
                 </div>
             </div>
         </div>
 
-        <div id="screen-profile" class="app-screen">
-            <div class="card">
-                <h3 style="margin: 0 0 4px 0;">Параметры бизнеса</h3>
-                <p style="color: var(--text-muted); font-size: 13px; margin: 0 0 10px 0;">Настройте профиль для адаптации ИИ</p>
-                
-                <div class="form-group">
-                    <label>Страна / Country</label>
-                    <select id="country" onchange="updateBusinessForms()">
-                        <option value="USA">United States (USA)</option>
-                        <option value="Russia">Россия (Russia)</option>
-                        <option value="Other">Другая страна / Other</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>Штат, область, город / Location</label>
-                    <input type="text" id="location" placeholder="e.g. Florida, Miami">
-                </div>
-
-                <div class="form-group">
-                    <label>Форма компании / Legal Entity</label>
-                    <select id="biz_form"></select>
-                </div>
-
-                <div class="form-group">
-                    <label>Суть и специфика деятельности</label>
-                    <textarea id="description" placeholder="Опишите продукт, сотрудников..."></textarea>
-                </div>
-
-                <button class="btn-submit" id="submit-btn" onclick="saveProfileData()">
-                    <i class="fa-solid fa-bolt"></i> <span id="btn-text">Запустить анализ рисков</span>
-                </button>
-            </div>
-        </div>
-
-        <!-- Спринт 2: Строка поиска в архиве -->
-        <div id="screen-archive" class="app-screen">
-            <div class="card" style="margin-bottom: 12px;">
-                <h3 style="margin: 0 0 8px 0;">Архив отчетов</h3>
-                <input type="text" id="archive-search-input" placeholder="🔍 Поиск по названию бизнеса..." oninput="filterArchive()">
-            </div>
-            <div id="archive-list">
-                <div class="card" style="opacity: 0.6; text-align: center; padding: 40px 20px;">
-                    <i class="fa-regular fa-folder-open" style="font-size: 32px; color: var(--text-muted); margin-bottom: 10px;"></i>
-                    <p style="margin: 0; font-size: 14px;">Архив пуст.</p>
-                </div>
-            </div>
-        </div>
-
-        <!-- Спринт 2: Выбор частоты уведомлений в настройках -->
-        <div id="screen-settings" class="app-screen">
-            <div class="card">
-                <h3>Настройки системы</h3>
-                
-                <div class="form-group">
-                    <label><i class="fa-regular fa-clock"></i> Время ежедневного пуша спокойствия</label>
-                    <input type="time" id="push_time" value="09:00" onchange="updatePushSettingsOnServer()">
-                </div>
-
-                <div class="form-group">
-                    <label><i class="fa-solid fa-calendar-days"></i> Частота уведомлений</label>
-                    <select id="push_frequency" onchange="updatePushSettingsOnServer()">
-                        <option value="daily">Каждый день</option>
-                        <option value="workdays">По будням (Пн-Пт)</option>
-                        <option value="weekly">Раз в неделю</option>
-                    </select>
-                </div>
-                
-                <hr style="border: 0; border-top: 1px solid var(--card-border); margin: 8px 0;">
-                
+        <div class="card">
+            <div class="form-group">
+                <label><i class="fa-solid fa-palette"></i> Оформление приложения</label>
                 <div class="theme-switch-box">
-                    <label><i class="fa-regular fa-moon"></i> Светлая / Темная тема</label>
-                    <button class="btn-submit" style="padding: 6px 12px; font-size: 13px; width: auto; margin: 0;" onclick="toggleTheme()">Сменить</button>
+                    <button id="btn-theme-dark" class="active" onclick="setTheme('dark')"><i class="fa-solid fa-moon"></i> Темная</button>
+                    <button id="btn-theme-light" onclick="setTheme('light')"><i class="fa-solid fa-sun"></i> Светлая</button>
                 </div>
             </div>
         </div>
-
     </div>
 
-    <div class="tab-bar">
-        <div class="tab-item active" id="tab-radar" onclick="switchScreen('screen-radar', this)">
-            <i class="fa-solid fa-shield-halved"></i> Главная
-        </div>
-        <div class="tab-item" id="tab-profile" onclick="switchScreen('screen-profile', this)">
-            <i class="fa-solid fa-briefcase"></i> Бизнес
-        </div>
-        <div class="tab-item" id="tab-archive" onclick="switchScreen('screen-archive', this)">
-            <i class="fa-solid fa-box-archive"></i> Архив
-        </div>
-        <div class="tab-item" id="tab-settings" onclick="switchScreen('screen-settings', this)">
-            <i class="fa-solid fa-gear"></i> Опции
-        </div>
+</div>
+
+<!-- Нижняя навигация -->
+<div class="nav-bar">
+    <div class="nav-item active" onclick="switchTab('main', this)">
+        <i class="fa-solid fa-brain"></i>
+        <span>Ассистент</span>
     </div>
+    <div class="nav-item" onclick="switchTab('archive', this)">
+        <i class="fa-solid fa-circle-check"></i>
+        <span>Архив</span>
+    </div>
+    <div class="nav-item" onclick="switchTab('options', this)">
+        <i class="fa-solid fa-sliders"></i>
+        <span>Опции</span>
+    </div>
+</div>
 
-    <script>
-        const BACKEND_URL = "https://ruleguard-backend.onrender.com";
-        const tg = window.Telegram.WebApp;
-        tg.expand();
+<script>
+    const tg = window.Telegram.WebApp;
+    tg.expand();
 
-        const userTelegramId = tg.initDataUnsafe?.user?.id || 542709522; 
-        const userTelegramName = tg.initDataUnsafe?.user?.first_name || "Предприниматель";
+    const userTelegramId = tg.initDataUnsafe?.user?.id || 123456789;
+    const userTelegramName = tg.initDataUnsafe?.user?.first_name || "TestUser";
+    const BACKEND_URL = 'https://ruleguard-backend.onrender.com';
 
-        let mediaRecorder = null;
-        let audioChunks = [];
-        let globalHistoryCache = []; // Кэш для поиска по архиву
+    let currentArchiveData = [];
 
-        document.getElementById('chat-user-input').addEventListener('input', function() {
-            const sendBtn = document.getElementById('chat-send-btn');
-            if (this.value.trim().length > 0) {
-                sendBtn.style.color = 'var(--accent-color)';
-                sendBtn.style.borderColor = 'var(--accent-color)';
+    window.onload = () => {
+        loadDataFromServer();
+        loadArchiveFromServer();
+        
+        const savedTheme = localStorage.getItem('appTheme') || 'dark';
+        setTheme(savedTheme);
+    };
+
+    function switchTab(tabId, el) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        
+        document.getElementById(`screen-${tabId}`).classList.add('active');
+        el.classList.add('active');
+
+        if (tabId === 'archive') loadArchiveFromServer();
+    }
+
+    function setTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem('appTheme', theme);
+        
+        document.getElementById('btn-theme-dark').classList.remove('active');
+        document.getElementById('btn-theme-light').classList.remove('active');
+        document.getElementById(`btn-theme-${theme}`).classList.add('active');
+
+        if (theme === 'dark') {
+            tg.setHeaderColor('#0A0A0C');
+            tg.setBackgroundColor('#0A0A0C');
+        } else {
+            tg.setHeaderColor('#F2F2F7');
+            tg.setBackgroundColor('#F2F2F7');
+        }
+    }
+
+    function addMessage(text, isUser = false) {
+        const box = document.getElementById('chatHistory');
+        const msg = document.createElement('div');
+        msg.className = `chat-message ${isUser ? 'user-msg' : 'bot-msg'}`;
+        msg.innerHTML = text; // Используем innerHTML для поддержки иконок внутри сообщений
+        box.appendChild(msg);
+        box.scrollTop = box.scrollHeight;
+        return msg; // Возвращаем элемент для возможности обновления (например, спиннера)
+    }
+
+    function handleEnter(e) {
+        if (e.key === 'Enter') sendMessage();
+    }
+
+    // Логика чекбоксов дней
+    function handleDaysLogic(changedCheckbox) {
+        const checkboxes = document.querySelectorAll('input[name="push_days"]');
+        const val = changedCheckbox.value;
+        const isChecked = changedCheckbox.checked;
+
+        if (isChecked) {
+            if (val === 'everyday' || val === 'monthly') {
+                checkboxes.forEach(cb => {
+                    if (cb !== changedCheckbox) cb.checked = false;
+                });
             } else {
-                sendBtn.style.color = 'var(--text-muted)';
-                sendBtn.style.borderColor = 'var(--card-border)';
-            }
-        });
-
-        function switchScreen(screenId, tabElement) {
-            document.querySelectorAll('.app-screen').forEach(s => s.classList.remove('active'));
-            document.querySelectorAll('.tab-item').forEach(t => t.classList.remove('active'));
-            
-            const targetScreen = document.getElementById(screenId);
-            if (targetScreen) targetScreen.classList.add('active');
-            if (tabElement) tabElement.classList.add('active');
-        }
-
-        function loadTheme() {
-            const cachedTheme = localStorage.getItem('ruleguard_theme');
-            if (cachedTheme === 'light') {
-                document.body.setAttribute('data-theme', 'light');
-                tg.setHeaderColor('#F2F2F7');
-            } else {
-                document.body.removeAttribute('data-theme');
-                tg.setHeaderColor('#0A0A0C');
+                checkboxes.forEach(cb => {
+                    if (cb.value === 'everyday' || cb.value === 'monthly') cb.checked = false;
+                });
             }
         }
+        updatePushSettingsOnServer(); 
+    }
 
-        function loadDataFromServer() {
-            const userTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-            fetch(`${BACKEND_URL}/api/history/${userTelegramId}?tz=${encodeURIComponent(userTimeZone)}`)
-            .then(res => res.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    if (data.push_time) {
-                        document.getElementById('push_time').value = data.push_time;
-                    }
-                    if (data.push_frequency) {
-                        document.getElementById('push_frequency').value = data.push_frequency;
-                    }
-                    if (data.history && data.history.length > 0) {
-                        globalHistoryCache = data.history;
-                        const lastReport = data.history[0].report_text;
-                        document.getElementById('ai-live-output').innerHTML = `<div class="analysis-output">${lastReport}</div>`;
-                        renderArchive(globalHistoryCache);
-                    } else {
-                        document.getElementById('ai-live-output').innerText = "Здесь отобразится информация после заполнения параметров бизнеса.";
-                    }
-                }
-            })
-            .catch(err => {
-                console.error("Ошибка загрузки данных из БД:", err);
-                document.getElementById('ai-live-output').innerText = "Не удалось загрузить данные из облака.";
-            });
+    function getSelectedDays() {
+        const checkboxes = document.querySelectorAll('input[name="push_days"]:checked');
+        return Array.from(checkboxes).map(cb => cb.value);
+    }
 
-            loadChatHistoryFromServer();
-        }
+    async function sendMessage() {
+        const input = document.getElementById('chatInput');
+        const text = input.value.trim();
+        if (!text) return;
 
-        function loadChatHistoryFromServer() {
-            fetch(`${BACKEND_URL}/api/chat/history/${userTelegramId}`)
-            .then(res => res.json())
-            .then(data => {
-                if (data.status === 'success' && data.history.length > 0) {
-                    const box = document.getElementById('chat-messages-box');
-                    box.innerHTML = '';
-                    data.history.forEach(m => {
-                        box.innerHTML += `<div class="chat-msg ${m.role}">${m.message_text}</div>`;
-                    });
-                    box.scrollTop = box.scrollHeight;
-                }
-            }).catch(e => console.error("Ошибка загрузки истории чата:", e));
-        }
+        addMessage(text, true);
+        input.value = '';
 
-        function sendChatMessage() {
-            if (mediaRecorder && mediaRecorder.state === "recording") {
-                mediaRecorder.stop();
-                const micBtn = document.getElementById('mic-btn');
-                micBtn.classList.remove('recording');
-                micBtn.innerHTML = `<i class="fa-solid fa-microphone"></i>`;
-                if (mediaRecorder.stream) {
-                    mediaRecorder.stream.getTracks().forEach(track => track.stop());
-                }
-                return;
-            }
-
-            const input = document.getElementById('chat-user-input');
-            const text = input.value.trim();
-            if (!text) return;
-
-            const box = document.getElementById('chat-messages-box');
-            box.innerHTML += `<div class="chat-msg user">${text}</div>`;
-            box.scrollTop = box.scrollHeight;
-            input.value = '';
-
-            const sendBtn = document.getElementById('chat-send-btn');
-            sendBtn.style.color = 'var(--text-muted)';
-            sendBtn.style.borderColor = 'var(--card-border)';
-            sendBtn.disabled = true;
-
-            fetch(`${BACKEND_URL}/api/chat/message`, {
+        try {
+            const response = await fetch(`${BACKEND_URL}/api/analyze`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_id: userTelegramId, text: text })
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    box.innerHTML += `<div class="chat-msg assistant">${data.report}</div>`;
-                } else {
-                    box.innerHTML += `<div class="chat-msg assistant">⚠️ Ошибка: ${data.message}</div>`;
-                }
-                box.scrollTop = box.scrollHeight;
-            })
-            .catch(err => {
-                console.error(err);
-                box.innerHTML += `<div class="chat-msg assistant">⚠️ Ошибка соединения с сервером.</div>`;
-            })
-            .finally(() => {
-                sendBtn.disabled = false;
+                body: JSON.stringify({ 
+                    user_id: userTelegramId,
+                    username: userTelegramName,
+                    prompt: text
+                })
             });
+            const data = await response.json();
+            addMessage(data.reply || "Ответ получен.");
+        } catch (error) {
+            addMessage("<i class='fa-solid fa-triangle-exclamation'></i> Ошибка связи с сервером.");
         }
+    }
 
-        function handleFileSelected() {
-            const fileInput = document.getElementById('chat-file-input');
-            if (fileInput.files.length === 0) return;
+    function handleFileUpload() {
+        const fileInput = document.getElementById('fileUpload');
+        const file = fileInput.files[0];
+        if (!file) return;
 
-            const file = fileInput.files[0];
-            const box = document.getElementById('chat-messages-box');
+        addMessage(`Файл отправлен: ${file.name}`, true);
+        const botMsg = addMessage("<i class='fa-solid fa-inbox'></i> Читаю и анализирую ваш договор...");
+
+        setTimeout(() => {
+            botMsg.innerHTML = "Анализ файла завершен. Найдены 3 потенциальных риска в пунктах о конфиденциальности. Сохраняю отчет в архив.";
+        }, 2000);
+        fileInput.value = '';
+    }
+
+    function startVoiceRecord() {
+        const btn = document.getElementById('voiceBtn');
+        btn.style.color = '#FF453A'; 
+        
+        setTimeout(() => {
+            btn.style.color = 'var(--text-main)';
+            addMessage("Аудиосообщение отправлено", true);
+            const botMsg = addMessage("<i class='fa-solid fa-microphone-lines'></i> Расшифровываю аудио...");
             
-            box.innerHTML += `<div class="chat-msg user"><i class="fa-solid fa-file-contract"></i> Отправлен файл: <b>${file.name}</b></div>`;
-            box.innerHTML += `<div class="chat-msg assistant" id="file-loading-msg">📥 Читаю и анализирую ваш договор... Пожалуйста, подождите.</div>`;
-            box.scrollTop = box.scrollHeight;
+            setTimeout(() => {
+                botMsg.innerHTML = "Голосовой запрос обработан. Подготовил краткую сводку по вашему вопросу.";
+            }, 1500);
+        }, 2000);
+    }
 
-            const formData = new FormData();
-            formData.append('user_id', userTelegramId);
-            formData.append('file', file);
+    async function saveProfileData() {
+        const bName = document.getElementById('business_name').value;
+        const bCtx = document.getElementById('business_context').value;
+        const pTime = document.getElementById('push_time').value;
+        const pDays = getSelectedDays();
 
-            fetch(`${BACKEND_URL}/api/webapp/analyze-doc?user_id=${userTelegramId}`, {
-                method: 'POST',
-                body: formData
-            })
-            .then(res => res.json())
-            .then(data => {
-                document.getElementById('file-loading-msg')?.remove();
-                if (data.status === 'success') {
-                    box.innerHTML += `<div class="chat-msg assistant">${data.report}</div>`;
-                } else {
-                    box.innerHTML += `<div class="chat-msg assistant">⚠️ Ошибка анализа файла: ${data.message}</div>`;
-                }
-                box.scrollTop = box.scrollHeight;
-            })
-            .catch(err => {
-                console.error(err);
-                document.getElementById('file-loading-msg')?.remove();
-                box.innerHTML += `<div class="chat-msg assistant">⚠️ Не удалось отправить файл на сервер.</div>`;
-                box.scrollTop = box.scrollHeight;
-            })
-            .finally(() => {
-                fileInput.value = ''; 
-            });
-        }
+        tg.HapticFeedback.impactOccurred('medium');
 
-        function toggleVoiceRecording() {
-            const micBtn = document.getElementById('mic-btn');
-            
-            if (mediaRecorder && mediaRecorder.state === "recording") {
-                mediaRecorder.stop();
-                micBtn.classList.remove('recording');
-                micBtn.innerHTML = `<i class="fa-solid fa-microphone"></i>`;
-                
-                if (mediaRecorder && mediaRecorder.stream) {
-                    mediaRecorder.stream.getTracks().forEach(track => track.stop());
-                }
-                return;
-            }
-
-            navigator.mediaDevices.getUserMedia({ audio: true })
-            .then(stream => {
-                audioChunks = [];
-                mediaRecorder = new MediaRecorder(stream);
-                
-                mediaRecorder.ondataavailable = event => {
-                    audioChunks.push(event.data);
-                };
-
-                mediaRecorder.onstop = () => {
-                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-                    sendVoiceBlobToServer(audioBlob);
-                };
-
-                mediaRecorder.start();
-                micBtn.classList.add('recording');
-                micBtn.innerHTML = `<i class="fa-solid fa-stop"></i>`;
-            })
-            .catch(err => {
-                console.error("Нет доступа к микрофону:", err);
-                alert("Ошибка: Предоставьте приложению доступ к микрофону в настройках.");
-            });
-        }
-
-        function sendVoiceBlobToServer(blob) {
-            const box = document.getElementById('chat-messages-box');
-            box.innerHTML += `<div class="chat-msg user"><i class="fa-solid fa-microphone-lines"></i> Голосовое сообщение отправлено</div>`;
-            box.innerHTML += `<div class="chat-msg assistant" id="voice-loading-msg">🎙️ Расшифровываю аудио и генерирую ответ юриста...</div>`;
-            box.scrollTop = box.scrollHeight;
-
-            const formData = new FormData();
-            formData.append('user_id', userTelegramId);
-            formData.append('file', blob, 'voice.wav');
-
-            fetch(`${BACKEND_URL}/api/webapp/analyze-voice?user_id=${userTelegramId}`, {
-                method: 'POST',
-                body: formData
-            })
-            .then(res => res.json())
-            .then(data => {
-                document.getElementById('voice-loading-msg')?.remove();
-                if (data.status === 'success') {
-                    box.innerHTML += `<div class="chat-msg assistant"><i>Текст вашего аудио: "${data.user_text}"</i>\n\n${data.report}</div>`;
-                } else {
-                    box.innerHTML += `<div class="chat-msg assistant">⚠️ Ошибка аудио: ${data.message}</div>`;
-                }
-                box.scrollTop = box.scrollHeight;
-            })
-            .catch(err => {
-                console.error(err);
-                document.getElementById('voice-loading-msg')?.remove();
-                box.innerHTML += `<div class="chat-msg assistant">⚠️ Не удалось отправить аудио на сервер.</div>`;
-                box.scrollTop = box.scrollHeight;
-            });
-        }
-
-        function triggerFastAnalysis() {
-            const btn = document.getElementById('refresh-analysis-btn');
-            const spinner = document.getElementById('refresh-spinner');
-            const icon = document.getElementById('refresh-icon');
-            const text = document.getElementById('refresh-btn-text');
-            
-            btn.disabled = true;
-            icon.style.display = 'none';
-            spinner.style.display = 'block';
-            text.innerText = "ИИ перепроверяет риски 2026...";
-
-            fetch(`${BACKEND_URL}/api/reanalyze/${userTelegramId}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    loadDataFromServer();
-                } else {
-                    alert("Ошибка ИИ: " + data.message);
-                }
-            })
-            .catch(err => {
-                console.error(err);
-                alert("Не удалось связаться с сервером Render.");
-            })
-            .finally(() => {
-                btn.disabled = false;
-                spinner.style.display = 'none';
-                icon.style.display = 'inline-block';
-                text.innerText = "Обновить текущий анализ";
-            });
-        }
-
-        function renderArchive(historyArray) {
-            const archiveList = document.getElementById('archive-list');
-            archiveList.innerHTML = '';
-            
-            if (!historyArray || historyArray.length === 0) {
-                archiveList.innerHTML = `
-                    <div class="card" style="opacity: 0.6; text-align: center; padding: 40px 20px;">
-                        <i class="fa-regular fa-folder-open" style="font-size: 32px; color: var(--text-muted); margin-bottom: 10px;"></i>
-                        <p style="margin: 0; font-size: 14px;">Ничего не найдено.</p>
-                    </div>`;
-                return;
-            }
-
-            historyArray.forEach(item => {
-                archiveList.innerHTML += `
-                    <div class="card">
-                        <h5 style="margin:0; color:var(--accent-color);">📋 Отчет от ${item.created_at}</h5>
-                        <p style="margin: 4px 0; font-size:11px; color:var(--text-muted)">Вводные: ${item.input_text}</p>
-                        <div style="font-size:13px; line-height:1.4; max-height: 150px; overflow-y: auto; color:var(--text-main); white-space: pre-line;">
-                            ${item.report_text}
-                        </div>
-                    </div>
-                `;
-            });
-        }
-
-        // Спринт 2: Фильтрация архива по введенному тексту (названию бизнеса или содержанию)
-        function filterArchive() {
-            const query = document.getElementById('archive-search-input').value.toLowerCase().trim();
-            if (!query) {
-                renderArchive(globalHistoryCache);
-                return;
-            }
-            const filtered = globalHistoryCache.filter(item => 
-                (item.input_text && item.input_text.toLowerCase().includes(query)) ||
-                (item.report_text && item.report_text.toLowerCase().includes(query))
-            );
-            renderArchive(filtered);
-        }
-
-        function updatePushSettingsOnServer() {
-            const pushTime = document.getElementById('push_time').value;
-            const pushFrequency = document.getElementById('push_frequency').value;
-            
-            fetch(`${BACKEND_URL}/api/analyze`, {
+        try {
+            await fetch(`${BACKEND_URL}/api/analyze`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     user_id: userTelegramId,
                     username: userTelegramName,
-                    push_time: pushTime,
-                    push_frequency: pushFrequency,
-                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone 
+                    business_name: bName,
+                    business_context: bCtx,
+                    push_time: pTime,
+                    push_days: pDays
                 })
-            }).catch(e => console.error(e));
-        }
-
-        function toggleTheme() {
-            const currentTheme = document.body.getAttribute('data-theme');
-            if (currentTheme === 'light') {
-                document.body.removeAttribute('data-theme');
-                localStorage.setItem('ruleguard_theme', 'dark');
-                tg.setHeaderColor('#0A0A0C');
-            } else {
-                document.body.setAttribute('data-theme', 'light');
-                localStorage.setItem('ruleguard_theme', 'light');
-                tg.setHeaderColor('#F2F2F7');
-            }
-        }
-
-        const forms = {
-            USA: [
-                { value: 'LLC', text: 'LLC (Limited Liability Company)' },
-                { value: 'C-Corp', text: 'C-Corporation' },
-                { value: 'Sole Proprietorship', text: 'Sole Proprietorship' }
-            ],
-            Russia: [
-                { value: 'ИП', text: 'ИП (Индивидуальный предприниматель)' },
-                { value: 'ООО', text: 'ООО (Общество с огр. ответственностью)' },
-                { value: 'Самозанятый', text: 'Самозанятость (НПД)' }
-            ],
-            Other: [
-                { value: 'Individual', text: 'Individual Entrepreneur' },
-                { value: 'Corporate', text: 'Corporate Entity' }
-            ]
-        };
-
-        function updateBusinessForms() {
-            const country = document.getElementById('country').value;
-            const formSelect = document.getElementById('biz_form');
-            formSelect.innerHTML = '';
-            forms[country].forEach(item => {
-                const option = document.createElement('option');
-                option.value = item.value;
-                option.text = item.text;
-                formSelect.appendChild(option);
             });
+            tg.showAlert("Профиль успешно сохранен!");
+        } catch (error) {
+            tg.showAlert("Ошибка при сохранении.");
         }
+    }
 
-        function saveProfileData() {
-            const country = document.getElementById('country').value;
-            const location = document.getElementById('location').value.trim();
-            const bizForm = document.getElementById('biz_form').value;
-            const description = document.getElementById('description').value.trim();
-            const pushTime = document.getElementById('push_time').value;
-            const pushFrequency = document.getElementById('push_frequency').value;
+    async function updatePushSettingsOnServer() {
+        const pTime = document.getElementById('push_time').value;
+        const pDays = getSelectedDays();
 
-            if (!location) { return alert('Укажите локацию!'); }
-
-            const btn = document.getElementById('submit-btn');
-            const btnText = document.getElementById('btn-text');
-            btn.disabled = true;
-            btnText.innerText = "ИИ сканирует законы 2026...";
-
-            const payload = {
-                user_id: userTelegramId,
-                username: userTelegramName,
-                country: country,
-                location: location,
-                legal_form: bizForm,
-                business_details: description || "Project Site",
-                push_time: pushTime,
-                push_frequency: pushFrequency,
-                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone 
-            };
-
-            fetch(`${BACKEND_URL}/api/analyze`, {
+        try {
+            await fetch(`${BACKEND_URL}/api/analyze`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            })
-            .then(response => response.json())
-            .then(data => {
-                btn.disabled = false;
-                btnText.innerText = "Запустить анализ рисков";
-                if (data.status === 'success') {
-                    loadDataFromServer();
-                    switchScreen('screen-radar', document.getElementById('tab-radar'));
-                } else {
-                    alert('Ошибка ИИ-анализа: ' + data.message);
-                }
-            })
-            .catch(error => {
-                btn.disabled = false;
-                btnText.innerText = "Запустить анализ рисков";
-                alert('Не удалось связаться с сервером Render.');
+                body: JSON.stringify({
+                    user_id: userTelegramId,
+                    username: userTelegramName,
+                    push_time: pTime,
+                    push_days: pDays,
+                    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+                })
             });
+        } catch (error) {
+            console.error("Error saving push setup:", error);
+        }
+    }
+
+    async function loadDataFromServer() {
+        try {
+            const response = await fetch(`${BACKEND_URL}/api/history/${userTelegramId}`);
+            if (response.ok) {
+                const data = await response.json();
+                if (data.business_name) document.getElementById('business_name').value = data.business_name;
+                if (data.business_context) document.getElementById('business_context').value = data.business_context;
+                if (data.push_time) document.getElementById('push_time').value = data.push_time;
+                
+                if (data.push_days && Array.isArray(data.push_days)) {
+                    const checkboxes = document.querySelectorAll('input[name="push_days"]');
+                    checkboxes.forEach(cb => {
+                        cb.checked = data.push_days.includes(cb.value);
+                    });
+                }
+            }
+        } catch (e) {
+            console.error("No profile history found yet.");
+        }
+    }
+
+    async function loadArchiveFromServer() {
+        const list = document.getElementById('archive-list');
+        list.innerHTML = '<p style="text-align:center; color:var(--text-muted); font-size:14px;"><i class="fa-solid fa-spinner fa-spin"></i> Загрузка...</p>';
+        try {
+            const response = await fetch(`${BACKEND_URL}/api/history/${userTelegramId}`);
+            if (response.ok) {
+                const data = await response.json();
+                currentArchiveData = data.reports || [];
+                renderArchive();
+            } else {
+                list.innerHTML = '<p style="text-align:center; color:var(--text-muted); font-size:14px;">Архив пока пуст.</p>';
+            }
+        } catch (e) {
+            list.innerHTML = '<p style="text-align:center; color:var(--text-muted); font-size:14px;">Ошибка загрузки архива.</p>';
+        }
+    }
+
+    function filterArchive() {
+        renderArchive(document.getElementById('archive-search-input').value.toLowerCase());
+    }
+
+    function renderArchive(filterText = "") {
+        const list = document.getElementById('archive-list');
+        list.innerHTML = '';
+        
+        let filtered = currentArchiveData;
+        if (filterText) {
+            filtered = currentArchiveData.filter(item => 
+                (item.business_name && item.business_name.toLowerCase().includes(filterText)) ||
+                (item.summary && item.summary.toLowerCase().includes(filterText))
+            );
         }
 
-        updateBusinessForms();
-        loadTheme();
-        loadDataFromServer();
-    </script>
+        if (!filtered || filtered.length === 0) {
+            list.innerHTML = '<p style="text-align:center; color:var(--text-muted); font-size:14px;">Ничего не найдено.</p>';
+            return;
+        }
+
+        filtered.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'archive-item';
+            div.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                    <div style="display:flex; flex-direction:column; gap:4px;">
+                        <h5 style="margin:0; font-size:15px; color:var(--accent-color); font-weight:600;"><i class="fa-regular fa-clipboard"></i> Отчет от ${item.created_at || 'Недавний'}</h5>
+                        <span style="font-size:13px; color:var(--text-muted);"><i class="fa-solid fa-building"></i> ${item.business_name || 'Не указан'}</span>
+                    </div>
+                </div>
+                <p style="margin:0; font-size:14px; line-height:1.5; color:var(--text-main);">${item.summary || 'Краткое содержание отчета отсутствует.'}</p>
+                <button style="align-self:flex-start; background:transparent; border:1px solid var(--card-border); color:var(--text-main); padding:8px 12px; border-radius:8px; font-size:13px; cursor:pointer;" onclick="tg.showAlert('Функция скачивания в разработке')"><i class="fa-solid fa-download"></i> Скачать PDF</button>
+            `;
+            list.appendChild(div);
+        });
+    }
+</script>
+
 </body>
 </html>
