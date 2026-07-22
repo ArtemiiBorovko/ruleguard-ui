@@ -70,6 +70,7 @@ def init_db():
                 business_description TEXT, 
                 push_time TEXT DEFAULT '09:00',
                 push_frequency TEXT DEFAULT 'daily',
+                push_days TEXT DEFAULT 'everyday', -- <--- ДОБАВЬ ЭТУ СТРОЧКУ
                 country TEXT,
                 location TEXT,
                 legal_form TEXT,
@@ -124,11 +125,12 @@ def init_db():
     except Exception:
         pass
 
-def save_user_data_extended(user_id, username=None, business=None, country=None, location=None, legal_form=None, push_time=None, timezone=None, tax_system=None, employee_count=None, has_ip_rights=None, online_sales=None, annual_turnover_bracket=None, main_risk_zones=None):
+def save_user_data_extended(user_id, username=None, business=None, country=None, location=None, legal_form=None, push_time=None, timezone=None, tax_system=None, employee_count=None, has_ip_rights=None, online_sales=None, annual_turnover_bracket=None, main_risk_zones=None, push_frequency=None, push_days=None):
     with engine.begin() as conn:
-        # Автоматически добавляем колонки в базу, если их вдруг нет, чтобы код не падал
+        # Безопасно добавляем недостающие колонки в базу, если их там физически еще нет
         try:
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS push_frequency TEXT DEFAULT 'daily';"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS push_days TEXT DEFAULT 'everyday';"))
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS tax_system TEXT;"))
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS employee_count INT;"))
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS has_ip_rights BOOLEAN;"))
@@ -138,10 +140,27 @@ def save_user_data_extended(user_id, username=None, business=None, country=None,
         except Exception:
             pass
 
-        result = conn.execute(text("SELECT user_name, business_description, country, location, legal_form, push_time, timezone, tax_system, employee_count, has_ip_rights, online_sales, annual_turnover_bracket, main_risk_zones FROM users WHERE user_id = :user_id"), {"user_id": user_id})
+        # Делаем выборку существующих данных пользователя
+        result = conn.execute(text("""
+            SELECT user_name, business_description, country, location, legal_form, 
+                   push_time, timezone, tax_system, employee_count, has_ip_rights, 
+                   online_sales, annual_turnover_bracket, main_risk_zones, 
+                   push_frequency, push_days 
+            FROM users WHERE user_id = :user_id
+        """), {"user_id": user_id})
         row = result.fetchone()
         
+        # Корректно обрабатываем дни недели (если пришел список с галочками типа ['mon', 'wed'], превращаем в строку, иначе сохраняем как есть)
+        if isinstance(push_days, list):
+            formatted_push_days = ",".join(push_days)
+        else:
+            formatted_push_days = push_days
+
+        # Обрабатываем зоны риска
+        c_risks = json.dumps(main_risk_zones) if isinstance(main_risk_zones, list) else main_risk_zones
+
         if row:
+            # Если пользователь уже есть в базе, подтягиваем старые данные, если новые не переданы
             c_name = username if username is not None else row[0]
             c_bus = business if business is not None else row[1]
             c_country = country if country is not None else row[2]
@@ -154,25 +173,53 @@ def save_user_data_extended(user_id, username=None, business=None, country=None,
             c_ip = has_ip_rights if has_ip_rights is not None else row[9]
             c_online = online_sales if online_sales is not None else row[10]
             c_turnover = annual_turnover_bracket if annual_turnover_bracket is not None else row[11]
-            c_risks = json.dumps(main_risk_zones) if isinstance(main_risk_zones, list) else (main_risk_zones if main_risk_zones is not None else row[12])
+            c_risk_val = c_risks if c_risks is not None else row[12]
+            c_freq = push_frequency if push_frequency is not None else (row[13] if row[13] else 'daily')
+            c_p_days = formatted_push_days if formatted_push_days is not None else (row[14] if row[14] else 'everyday')
             
             conn.execute(text('''
                 UPDATE users 
                 SET user_name = :name, business_description = :bus, country = :country, location = :loc, 
                     legal_form = :form, push_time = :push, timezone = :tz, tax_system = :tax, employee_count = :emp, 
                     has_ip_rights = :ip, online_sales = :online, annual_turnover_bracket = :turnover, main_risk_zones = :risks, 
+                    push_frequency = :freq, push_days = :p_days,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE user_id = :user_id
-            '''), {"name": c_name, "bus": c_bus, "country": c_country, "loc": c_loc, "form": c_form, "push": c_push, "tz": c_tz, "tax": c_tax, "emp": c_emp, "ip": c_ip, "online": c_online, "turnover": c_turnover, "risks": c_risks, "user_id": user_id})
-        else:
-            c_risks = json.dumps(main_risk_zones) if isinstance(main_risk_zones, list) else main_risk_zones
-            conn.execute(text('''
-                INSERT INTO users (user_id, user_name, business_description, country, location, legal_form, push_time, timezone, tax_system, employee_count, has_ip_rights, online_sales, annual_turnover_bracket, main_risk_zones) 
-                VALUES (:user_id, :name, :bus, :country, :loc, :form, :push, :tz, :tax, :emp, :ip, :online, :turnover, :risks)
             '''), {
-                "user_id": user_id, "name": username or "Предприниматель", "bus": business or "Не указано", "country": country or "Не указано", 
-                "loc": location or "Не указано", "form": legal_form or "Не указано", "push": push_time or '09:00', "tz": timezone or 'UTC',
-                "tax": tax_system, "emp": employee_count, "ip": has_ip_rights, "online": online_sales, "turnover": annual_turnover_bracket, "risks": c_risks
+                "name": c_name, "bus": c_bus, "country": c_country, "loc": c_loc, "form": c_form, 
+                "push": c_push, "tz": c_tz, "tax": c_tax, "emp": c_emp, "ip": c_ip, "online": c_online, 
+                "turnover": c_turnover, "risks": c_risk_val, "freq": c_freq, "p_days": c_p_days, "user_id": user_id
+            })
+        else:
+            # Если пользователя нет, создаем новую запись с дефолтными значениями
+            conn.execute(text('''
+                INSERT INTO users (
+                    user_id, user_name, business_description, country, location, legal_form, 
+                    push_time, timezone, tax_system, employee_count, has_ip_rights, 
+                    online_sales, annual_turnover_bracket, main_risk_zones, push_frequency, push_days
+                ) 
+                VALUES (
+                    :user_id, :name, :bus, :country, :loc, :form, 
+                    :push, :tz, :tax, :emp, :ip, 
+                    :online, :turnover, :risks, :freq, :p_days
+                )
+            '''), {
+                "user_id": user_id, 
+                "name": username or "Предприниматель", 
+                "bus": business or "Не указано", 
+                "country": country or "Не указано", 
+                "loc": location or "Не указано", 
+                "form": legal_form or "Не указано", 
+                "push": push_time or '09:00', 
+                "tz": timezone or 'UTC',
+                "tax": tax_system, 
+                "emp": employee_count, 
+                "ip": has_ip_rights, 
+                "online": online_sales, 
+                "turnover": annual_turnover_bracket, 
+                "risks": c_risks,
+                "freq": push_frequency or 'daily',
+                "p_days": formatted_push_days or 'everyday'
             })
 
 def save_user_data(user_id, username=None, business=None):
@@ -540,12 +587,22 @@ async def handle_web_analysis(request: Request):
         annual_turnover_bracket = data.get('annual_turnover_bracket', None)
         main_risk_zones = data.get('main_risk_zones', None)
         
+        # Шаг 3 (исправленный): аккуратно достаем дни рассылки из пришедшего от фронтенда JSON
+        raw_push_days = data.get('push_days', 'everyday')
+        if isinstance(raw_push_days, list):
+            push_days_str = ",".join(raw_push_days)  # если пришел список галочек, делаем строку через запятую
+        else:
+            push_days_str = str(raw_push_days)       # если пришла строка (например, 'everyday' или 'monthly'), оставляем как есть
+
+        # Передаем все данные вместе с push_days в функцию сохранения
         save_user_data_extended(
             user_id, username=username, business=details, country=country, location=location, 
             legal_form=legal_form, push_time=push_time, timezone=user_tz, tax_system=tax_system, 
             employee_count=employee_count, has_ip_rights=has_ip_rights, online_sales=online_sales, 
-            annual_turnover_bracket=annual_turnover_bracket, main_risk_zones=main_risk_zones
+            annual_turnover_bracket=annual_turnover_bracket, main_risk_zones=main_risk_zones,
+            push_days=push_days_str
         )
+        
         if not details and not location: return {"status": "success"}
 
         compiled_input = f"{country or ''} {location or ''} {legal_form or ''} {details or ''} Налог: {tax_system or ''}"
