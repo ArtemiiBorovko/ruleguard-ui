@@ -315,10 +315,14 @@ def check_if_search_needed(history, current_input):
 def parse_and_apply_ai_intent(user_id, text_input):
     system_prompt = (
         "Ты — анализатор намерений пользователя в приложении RuleGuard.\n"
-        "Проанализируй текст и определи, хочет ли пользователь изменить настройки интерфейса или расписания уведомлений:\n"
-        "1. Тема интерфейса: если просит включить светлую тему, белый интерфейс -> theme: 'light'. Если темную -> theme: 'dark'.\n"
-        "2. Время пушей: если просит ставить уведомления/пуши на определенное время (например, на 13:00) -> push_time: 'HH:MM'.\n"
-        "3. Дни пушей / Частота: если указывает дни недели (например, понедельник, среда, суббота) или 'каждый день', 'раз в месяц' -> push_frequency: укажи дни или расписание.\n\n"
+        "Проанализируй текст и выдели настройки расписания или интерфейса, если они есть:\n"
+        "1. Тема интерфейса: если просит светлую тему -> 'light', темную -> 'dark'. Иначе null.\n"
+        "2. Время пушей: найди время в формате HH:MM (например, 14:10). Иначе null.\n"
+        "3. Дни или частота (push_frequency): \n"
+        "   - Если написано 'каждый день' или 'ежедневно', верни строку: 'everyday'.\n"
+        "   - Если указаны конкретные дни (понедельник, среда и т.д.), переведи их в английские названия через запятую: 'Monday,Wednesday'.\n"
+        "   - Если 'раз в месяц', верни: 'monthly'.\n"
+        "   Иначе возвращай null.\n\n"
         "Верни результат СТРОГО в формате JSON без лишнего текста и без markdown-оформления:\n"
         "{\n"
         "  \"action\": \"settings_updated\" или \"none\",\n"
@@ -349,7 +353,7 @@ def parse_and_apply_ai_intent(user_id, text_input):
                 if push_time:
                     conn.execute(text("UPDATE users SET push_time = :pt WHERE user_id = :uid"), {"pt": push_time, "uid": user_id})
                 if push_frequency:
-                    conn.execute(text("UPDATE users SET push_frequency = :pf WHERE user_id = :uid"), {"pf": push_frequency, "uid": user_id})
+                    conn.execute(text("UPDATE users SET push_frequency = :pf, push_days = :pf WHERE user_id = :uid"), {"pf": push_frequency, "uid": user_id})
 
             return {
                 "action": action,
