@@ -1020,8 +1020,14 @@ def send_daily_push_notifications():
                 # Проверяем, входит ли текущий день недели в разрешенные дни (например, mon, wed)
                 current_day_str = now_tz.strftime('%a').lower() # mon, tue, wed, thu, fri, sat, sun
                 days_list = [d.strip().lower() for d in (push_days or '').split(',') if d.strip()]
+                
                 if current_day_str in days_list:
                     should_send = True
+                    
+                # ИСПРАВЛЕНИЕ: Перехватываем 'monthly', если он прилетел как день недели
+                if 'monthly' in days_list:
+                    if last_push_date is None or (today_date - last_push_date).days >= 30:
+                        should_send = True
 
             if not should_send:
                 continue
