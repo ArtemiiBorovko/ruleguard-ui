@@ -1033,7 +1033,9 @@ def send_welcome(message):
 @bot.message_handler(func=lambda message: True, content_types=['text'])
 def handle_text(message):
     user_id = message.from_user.id
-    if message.text == "🔄 Повторить последний анализ":
+    text_msg = message.text.strip()
+    
+    if text_msg == "🔄 Повторить последний анализ":
         bot.send_chat_action(message.chat.id, 'typing')
         with engine.connect() as conn:
             result = conn.execute(text("SELECT country, location, legal_form, business_description FROM users WHERE user_id = :user_id"), {"user_id": user_id})
@@ -1049,8 +1051,23 @@ def handle_text(message):
             safe_reply_to(message, f"🔄 **Свежий отчет:**\n\n{report}")
         except Exception as e:
             safe_reply_to(message, f"⚠️ Ошибка: {e}")
-    else:
-        run_legal_analysis(message, message.text)
+        return
+
+    # 1. Сначала проверяем, не просит ли пользователь изменить настройки (время, дни, тему)
+    intent_result = parse_and_apply_ai_intent(user_id, text_msg)
+    if intent_result.get("action") == "settings_updated":
+        fields = intent_result.get("updated_fields", {})
+        updated_desc = []
+        if fields.get("push_time"): updated_desc.append(f"время пушей: {fields['push_time']}")
+        if fields.get("push_frequency"): updated_desc.append(f"расписание: {fields['push_frequency']}")
+        if fields.get("theme"): updated_desc.append(f"тема: {fields['theme']}")
+        
+        response_text = "⚙️ Настройки успешно обновлены: " + ", ".join(updated_desc) if updated_desc else "⚙️ Настройки обновлены."
+        safe_reply_to(message, response_text)
+        return  # Прерываем выполнение, чтобы бот не уходил в юридический анализ обычного текста
+
+    # 2. Если это обычный вопрос или обсуждение — отправляем юристу-аналитику
+    run_legal_analysis(message, text_msg)
 
 @bot.message_handler(content_types=['voice'])
 def handle_voice(message):
