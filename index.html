@@ -848,22 +848,27 @@
                 if (data.status === 'success') {
                     box.innerHTML += `<div class="chat-msg assistant"><i>Текст вашего аудио: "${data.user_text}"</i>\n\n${data.report}</div>`;
                     
+                    // --- НАЧАЛО: Обработка команд ИИ для смены настроек ---
                     if (data.action && data.action !== 'none') {
                         if (data.updated_fields && data.updated_fields.theme) {
                             if (data.updated_fields.theme === 'light' && !document.body.hasAttribute('data-theme')) toggleTheme();
                             else if (data.updated_fields.theme === 'dark' && document.body.hasAttribute('data-theme')) toggleTheme();
                         }
+                        // Запрашиваем актуальные данные с сервера (время, дни рассылки), если ИИ их изменил
                         loadDataFromServer();
                     }
+                    // --- КОНЕЦ: Обработка команд ИИ ---
+                    
                 } else {
-                    box.innerHTML += `<div class="chat-msg assistant"><i class="fa-solid fa-triangle-exclamation"></i> Ошибка аудио: ${data.message}</div>`;
+                    box.innerHTML += `<div class="chat-msg assistant"><i class="fa-solid fa-triangle-exclamation"></i> Ошибка: ${data.message}</div>`;
                 }
                 box.scrollTop = box.scrollHeight;
             })
             .catch(err => {
                 console.error(err);
                 document.getElementById('voice-loading-msg')?.remove();
-                box.innerHTML += `<div class="chat-msg assistant"><i class="fa-solid fa-triangle-exclamation"></i> Не удалось отправить аудио на сервер.</div>`;
+                box.innerHTML += `<div class="chat-msg assistant"><i class="fa-solid fa-triangle-exclamation"></i> Ошибка соединения с сервером.</div>`;
+                box.scrollTop = box.scrollHeight;
             });
         }
 
