@@ -126,6 +126,18 @@ def init_db():
 
 def save_user_data_extended(user_id, username=None, business=None, country=None, location=None, legal_form=None, push_time=None, timezone=None, tax_system=None, employee_count=None, has_ip_rights=None, online_sales=None, annual_turnover_bracket=None, main_risk_zones=None):
     with engine.begin() as conn:
+        # Автоматически добавляем колонки в базу, если их вдруг нет, чтобы код не падал
+        try:
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS push_frequency TEXT DEFAULT 'daily';"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS tax_system TEXT;"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS employee_count INT;"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS has_ip_rights BOOLEAN;"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS online_sales BOOLEAN;"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS annual_turnover_bracket TEXT;"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS main_risk_zones TEXT;"))
+        except Exception:
+            pass
+
         result = conn.execute(text("SELECT user_name, business_description, country, location, legal_form, push_time, timezone, tax_system, employee_count, has_ip_rights, online_sales, annual_turnover_bracket, main_risk_zones FROM users WHERE user_id = :user_id"), {"user_id": user_id})
         row = result.fetchone()
         
@@ -635,9 +647,9 @@ async def handle_webapp_doc(user_id: int, file: UploadFile = File(...)):
 
 @app.post("/api/webapp/analyze-voice")
 async def handle_webapp_voice(user_id: int, file: UploadFile = File(...)):
+    filename = f"webapp_voice_{user_id}.ogg"
     try:
         content = await file.read()
-        filename = f"webapp_voice_{user_id}.ogg"
         with open(filename, 'wb') as f:
             f.write(content)
             
@@ -645,12 +657,10 @@ async def handle_webapp_voice(user_id: int, file: UploadFile = File(...)):
             transcription = groq_client.audio.transcriptions.create(
                 file=(filename, audio_file.read()), model="whisper-large-v3", language="ru", response_format="text"
             )
-        if os.path.exists(filename):
-            os.remove(filename)
             
         user_text = getattr(transcription, 'text', str(transcription)).strip()
         if not user_text:
-            return {"status": "error", "message": "Не удалось распознать речь."}
+            return {"status": "error", "message": "Не удалось распознать речь. Попробуйте еще раз."}
             
         # Спринт 3: Проверяем команды из аудиосообщения
         intent_result = parse_and_apply_ai_intent(user_id, user_text)
@@ -671,7 +681,14 @@ async def handle_webapp_voice(user_id: int, file: UploadFile = File(...)):
             "updated_fields": intent_result.get("updated_fields")
         }
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        print(f"⚠️ Ошибка в analyze-voice: {e}")
+        return {"status": "error", "message": f"Ошибка обработки голоса: {str(e)}"}
+    finally:
+        if os.path.exists(filename):
+            try:
+                os.remove(filename)
+            except:
+                pass
 
 @app.post("/api/reanalyze/{user_id}")
 async def reanalyze(user_id: int):
