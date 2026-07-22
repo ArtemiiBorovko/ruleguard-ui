@@ -73,6 +73,12 @@ def init_db():
                 country TEXT,
                 location TEXT,
                 legal_form TEXT,
+                tax_system TEXT,
+                employee_count INT,
+                has_ip_rights BOOLEAN,
+                online_sales BOOLEAN,
+                annual_turnover_bracket TEXT,
+                main_risk_zones TEXT,
                 timezone TEXT DEFAULT 'UTC',
                 last_push_date DATE,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -109,12 +115,18 @@ def init_db():
     try:
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE users ADD COLUMN push_frequency TEXT DEFAULT 'daily';"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN tax_system TEXT;"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN employee_count INT;"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN has_ip_rights BOOLEAN;"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN online_sales BOOLEAN;"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN annual_turnover_bracket TEXT;"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN main_risk_zones TEXT;"))
     except Exception:
         pass
 
-def save_user_data_extended(user_id, username=None, business=None, country=None, location=None, legal_form=None, push_time=None, timezone=None):
+def save_user_data_extended(user_id, username=None, business=None, country=None, location=None, legal_form=None, push_time=None, timezone=None, tax_system=None, employee_count=None, has_ip_rights=None, online_sales=None, annual_turnover_bracket=None, main_risk_zones=None):
     with engine.begin() as conn:
-        result = conn.execute(text("SELECT user_name, business_description, country, location, legal_form, push_time, timezone FROM users WHERE user_id = :user_id"), {"user_id": user_id})
+        result = conn.execute(text("SELECT user_name, business_description, country, location, legal_form, push_time, timezone, tax_system, employee_count, has_ip_rights, online_sales, annual_turnover_bracket, main_risk_zones FROM users WHERE user_id = :user_id"), {"user_id": user_id})
         row = result.fetchone()
         
         if row:
@@ -125,20 +137,30 @@ def save_user_data_extended(user_id, username=None, business=None, country=None,
             c_form = legal_form if legal_form is not None else row[4]
             c_push = push_time if push_time is not None else row[5]
             c_tz = timezone if timezone is not None else (row[6] if row[6] else 'UTC')
+            c_tax = tax_system if tax_system is not None else row[7]
+            c_emp = employee_count if employee_count is not None else row[8]
+            c_ip = has_ip_rights if has_ip_rights is not None else row[9]
+            c_online = online_sales if online_sales is not None else row[10]
+            c_turnover = annual_turnover_bracket if annual_turnover_bracket is not None else row[11]
+            c_risks = json.dumps(main_risk_zones) if isinstance(main_risk_zones, list) else (main_risk_zones if main_risk_zones is not None else row[12])
             
             conn.execute(text('''
                 UPDATE users 
                 SET user_name = :name, business_description = :bus, country = :country, location = :loc, 
-                    legal_form = :form, push_time = :push, timezone = :tz, updated_at = CURRENT_TIMESTAMP
+                    legal_form = :form, push_time = :push, timezone = :tz, tax_system = :tax, employee_count = :emp, 
+                    has_ip_rights = :ip, online_sales = :online, annual_turnover_bracket = :turnover, main_risk_zones = :risks, 
+                    updated_at = CURRENT_TIMESTAMP
                 WHERE user_id = :user_id
-            '''), {"name": c_name, "bus": c_bus, "country": c_country, "loc": c_loc, "form": c_form, "push": c_push, "tz": c_tz, "user_id": user_id})
+            '''), {"name": c_name, "bus": c_bus, "country": c_country, "loc": c_loc, "form": c_form, "push": c_push, "tz": c_tz, "tax": c_tax, "emp": c_emp, "ip": c_ip, "online": c_online, "turnover": c_turnover, "risks": c_risks, "user_id": user_id})
         else:
+            c_risks = json.dumps(main_risk_zones) if isinstance(main_risk_zones, list) else main_risk_zones
             conn.execute(text('''
-                INSERT INTO users (user_id, user_name, business_description, country, location, legal_form, push_time, timezone) 
-                VALUES (:user_id, :name, :bus, :country, :loc, :form, :push, :tz)
+                INSERT INTO users (user_id, user_name, business_description, country, location, legal_form, push_time, timezone, tax_system, employee_count, has_ip_rights, online_sales, annual_turnover_bracket, main_risk_zones) 
+                VALUES (:user_id, :name, :bus, :country, :loc, :form, :push, :tz, :tax, :emp, :ip, :online, :turnover, :risks)
             '''), {
                 "user_id": user_id, "name": username or "Предприниматель", "bus": business or "Не указано", "country": country or "Не указано", 
-                "loc": location or "Не указано", "form": legal_form or "Не указано", "push": push_time or '09:00', "tz": timezone or 'UTC'
+                "loc": location or "Не указано", "form": legal_form or "Не указано", "push": push_time or '09:00', "tz": timezone or 'UTC',
+                "tax": tax_system, "emp": employee_count, "ip": has_ip_rights, "online": online_sales, "turnover": annual_turnover_bracket, "risks": c_risks
             })
 
 def save_user_data(user_id, username=None, business=None):
@@ -146,10 +168,10 @@ def save_user_data(user_id, username=None, business=None):
 
 def get_user_context(user_id):
     with engine.connect() as conn:
-        result = conn.execute(text("SELECT user_name, business_description, country, location, legal_form FROM users WHERE user_id = :user_id"), {"user_id": user_id})
+        result = conn.execute(text("SELECT user_name, business_description, country, location, legal_form, tax_system, employee_count, has_ip_rights, online_sales, annual_turnover_bracket, main_risk_zones FROM users WHERE user_id = :user_id"), {"user_id": user_id})
         row = result.fetchone()
     if row: 
-        return f"Пользователь: {row[0] or 'Не указано'}. Страна: {row[2] or 'Не указано'}, Регион: {row[3] or 'Не указано'}, ОПФ: {row[4] or 'Не указано'}. Специфика бизнеса: {row[1] or 'Не указано'}."
+        return f"Пользователь: {row[0] or 'Не указано'}. Страна: {row[2] or 'Не указано'}, Регион: {row[3] or 'Не указано'}, ОПФ: {row[4] or 'Не указано'}. Специфика бизнеса: {row[1] or 'Не указано'}. Система налогообложения: {row[5] or 'Не указано'}. Сотрудников: {row[6] or 'Не указано'}. Права на ИС: {row[7]}, Онлайн-продажи: {row[8]}, Оборот: {row[9] or 'Не указано'}. Зоны риска: {row[10] or 'Не указано'}."
     return "Новый пользователь без настроенного профиля."
 
 def save_report_to_archive(user_id, input_text, report_text):
@@ -234,19 +256,16 @@ def check_if_search_needed(history, current_input):
 def parse_and_apply_ai_intent(user_id, text_input):
     system_prompt = (
         "Ты — анализатор намерений пользователя в приложении RuleGuard.\n"
-        "Проанализируй текст и определи, хочет ли пользователь изменить настройки интерфейса или профиля:\n"
+        "Проанализируй текст и определи, хочет ли пользователь изменить настройки интерфейса или расписания уведомлений:\n"
         "1. Тема интерфейса: если просит включить светлую тему, белый интерфейс -> theme: 'light'. Если темную -> theme: 'dark'.\n"
-        "2. Время пушей: если просит ставить уведомления/пуши на определенное время (например, на 10:00) -> push_time: 'HH:MM'.\n"
-        "3. Параметры бизнеса или страны/локации, если он их прямо меняет.\n\n"
+        "2. Время пушей: если просит ставить уведомления/пуши на определенное время (например, на 13:00) -> push_time: 'HH:MM'.\n"
+        "3. Дни пушей / Частота: если указывает дни недели (например, понедельник, среда, суббота) или 'каждый день', 'раз в месяц' -> push_frequency: укажи дни или расписание.\n\n"
         "Верни результат СТРОГО в формате JSON без лишнего текста и без markdown-оформления:\n"
         "{\n"
-        "  \"action\": \"settings_updated\" или \"profile_updated\" или \"none\",\n"
+        "  \"action\": \"settings_updated\" или \"none\",\n"
         "  \"theme\": \"light\" или \"dark\" или null,\n"
         "  \"push_time\": \"HH:MM\" или null,\n"
-        "  \"country\": \"...\" или null,\n"
-        "  \"location\": \"...\" или null,\n"
-        "  \"legal_form\": \"...\" или null,\n"
-        "  \"business_description\": \"...\" или null\n"
+        "  \"push_frequency\": \"...\" или null\n"
         "}"
     )
     try:
@@ -262,32 +281,23 @@ def parse_and_apply_ai_intent(user_id, text_input):
         data = json.loads(cleaned.strip())
         
         action = data.get("action", "none")
-        if action in ["settings_updated", "profile_updated"]:
+        if action == "settings_updated":
             theme = data.get("theme")
             push_time = data.get("push_time")
-            country = data.get("country")
-            location = data.get("location")
-            legal_form = data.get("legal_form")
-            business_desc = data.get("business_description")
+            push_frequency = data.get("push_frequency")
             
-            # Применяем в базу данных
-            save_user_data_extended(
-                user_id=user_id,
-                business=business_desc,
-                country=country,
-                location=location,
-                legal_form=legal_form,
-                push_time=push_time
-            )
+            with engine.begin() as conn:
+                if push_time:
+                    conn.execute(text("UPDATE users SET push_time = :pt WHERE user_id = :uid"), {"pt": push_time, "uid": user_id})
+                if push_frequency:
+                    conn.execute(text("UPDATE users SET push_frequency = :pf WHERE user_id = :uid"), {"pf": push_frequency, "uid": user_id})
+
             return {
                 "action": action,
                 "updated_fields": {
                     "theme": theme,
                     "push_time": push_time,
-                    "country": country,
-                    "location": location,
-                    "legal_form": legal_form,
-                    "business_description": business_desc
+                    "push_frequency": push_frequency
                 }
             }
     except Exception as e:
@@ -433,6 +443,8 @@ def run_legal_analysis(message, current_input_text):
     user_id = message.from_user.id
     try:
         bot_response = get_legal_chat_reply(user_id, current_input_text)
+        save_chat_message(user_id, "user", current_input_text)
+        save_chat_message(user_id, "assistant", bot_response)
         safe_reply_to(message, bot_response)
     except Exception as e:
         safe_reply_to(message, f"⚠️ Системная ошибка: {str(e)}")
@@ -476,6 +488,17 @@ async def handle_webapp_chat_message(request: Request):
         intent_result = parse_and_apply_ai_intent(user_id, text_msg)
         
         reply = get_legal_chat_reply(user_id, text_msg)
+        
+        # Дублируем ответ в Telegram, если чат вызван из WebApp
+        flag = "🌐"
+        try:
+            bot.send_message(user_id, f"💬 <b>Сообщение из приложения:</b>\n{text_msg}\n\n🤖 <b>Ответ ИИ:</b>\n{reply}", parse_mode='HTML')
+        except Exception:
+            try:
+                bot.send_message(user_id, f"💬 Сообщение из приложения:\n{text_msg}\n\n🤖 Ответ ИИ:\n{reply}")
+            except:
+                pass
+
         return {
             "status": "success", 
             "reply": reply, 
@@ -498,11 +521,22 @@ async def handle_web_analysis(request: Request):
         details = data.get('business_details', None)
         push_time = data.get('push_time', None)
         user_tz = data.get('timezone', None)
+        tax_system = data.get('tax_system', None)
+        employee_count = data.get('employee_count', None)
+        has_ip_rights = data.get('has_ip_rights', None)
+        online_sales = data.get('online_sales', None)
+        annual_turnover_bracket = data.get('annual_turnover_bracket', None)
+        main_risk_zones = data.get('main_risk_zones', None)
         
-        save_user_data_extended(user_id, username, details, country, location, legal_form, push_time, user_tz)
+        save_user_data_extended(
+            user_id, username=username, business=details, country=country, location=location, 
+            legal_form=legal_form, push_time=push_time, timezone=user_tz, tax_system=tax_system, 
+            employee_count=employee_count, has_ip_rights=has_ip_rights, online_sales=online_sales, 
+            annual_turnover_bracket=annual_turnover_bracket, main_risk_zones=main_risk_zones
+        )
         if not details and not location: return {"status": "success"}
 
-        compiled_input = f"{country or ''} {location or ''} {legal_form or ''} {details or ''}"
+        compiled_input = f"{country or ''} {location or ''} {legal_form or ''} {details or ''} Налог: {tax_system or ''}"
         report = generate_report_logic(user_id, compiled_input)
         
         flag = "🇺🇸" if country == "USA" else "🇷🇺" if country == "Russia" else "🌐"
@@ -518,10 +552,11 @@ async def handle_web_analysis(request: Request):
 async def get_user_history(user_id: int, tz: str = "UTC"):
     try:
         with engine.connect() as conn:
-            user_res = conn.execute(text("SELECT push_time, timezone FROM users WHERE user_id = :user_id"), {"user_id": user_id})
+            user_res = conn.execute(text("SELECT push_time, timezone, push_frequency FROM users WHERE user_id = :user_id"), {"user_id": user_id})
             user_row = user_res.fetchone()
             push_time = user_row[0] if user_row and user_row[0] else "09:00"
             user_tz_str = user_row[1] if user_row and user_row[1] else "UTC"
+            push_frequency = user_row[2] if user_row and user_row[2] else "daily"
             
             try: tz_obj = pytz.timezone(user_tz_str)
             except: tz_obj = pytz.utc
@@ -536,7 +571,7 @@ async def get_user_history(user_id: int, tz: str = "UTC"):
                     "report_text": row[1],
                     "created_at": utc_dt.astimezone(tz_obj).strftime("%d.%m.%Y %H:%M")
                 })
-        return {"status": "success", "push_time": push_time, "history": history}
+        return {"status": "success", "push_time": push_time, "push_frequency": push_frequency, "history": history}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
@@ -586,8 +621,11 @@ async def handle_webapp_doc(user_id: int, file: UploadFile = File(...)):
         
         report = safe_groq_request(messages, temperature=0.2)
         
+        save_chat_message(user_id, "user", f"[Документ: {file.filename}]")
+        save_chat_message(user_id, "assistant", report)
+        
         try: 
-            bot.send_message(user_id, f"📋 **Результаты экспресс-аудита документа (из приложения):**\n\n{report}", parse_mode='Markdown')
+            bot.send_message(user_id, f"📋 <b>Результаты экспресс-аудита документа (из приложения):</b>\n\n{report}", parse_mode='HTML')
         except Exception:
             bot.send_message(user_id, f"📋 Результаты экспресс-аудита документа (из приложения):\n\n{report}")
         
@@ -618,6 +656,12 @@ async def handle_webapp_voice(user_id: int, file: UploadFile = File(...)):
         intent_result = parse_and_apply_ai_intent(user_id, user_text)
             
         reply = get_legal_chat_reply(user_id, user_text)
+        
+        try:
+            bot.send_message(user_id, f"🗣️ <b>Голосовое из приложения:</b> {user_text}\n\n🤖 <b>Ответ:</b>\n{reply}", parse_mode='HTML')
+        except:
+            pass
+
         return {
             "status": "success", 
             "user_text": user_text, 
@@ -1008,6 +1052,10 @@ def handle_document(message):
         ]
         
         report = safe_groq_request(messages, temperature=0.2)
+        
+        save_chat_message(message.from_user.id, "user", f"[Документ: {file_name}]")
+        save_chat_message(message.from_user.id, "assistant", report)
+        
         safe_reply_to(message, f"📋 **Результаты экспресс-аудита документа:**\n\n{report}")
     except Exception as e:
         safe_reply_to(message, f"⚠️ Ошибка при анализе документа: {str(e)}")
