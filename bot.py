@@ -316,19 +316,19 @@ def parse_and_apply_ai_intent(user_id, text_input):
     system_prompt = (
         "Ты — анализатор намерений пользователя в приложении RuleGuard.\n"
         "Проанализируй текст и выдели настройки расписания или интерфейса, если они есть:\n"
-        "1. Тема интерфейса: если просит светлую тему -> 'light', темную -> 'dark'. Иначе null.\n"
-        "2. Время пушей: найди время в формате HH:MM (например, 14:10). Иначе null.\n"
-        "3. Дни или частота (push_frequency): \n"
-        "   - Если написано 'каждый день' или 'ежедневно', верни строку: 'everyday'.\n"
-        "   - Если указаны конкретные дни (понедельник, среда и т.д.), переведи их в английские названия через запятую: 'Monday,Wednesday'.\n"
-        "   - Если 'раз в месяц', верни: 'monthly'.\n"
-        "   Иначе возвращай null.\n\n"
-        "Верни результат СТРОГО в формате JSON без лишнего текста и без markdown-оформления:\n"
+        "1. Тема интерфейса: 'light' или 'dark'. Иначе null.\n"
+        "2. Время пушей: найди время в формате HH:MM. Иначе null.\n"
+        "3. Частота и дни рассылки:\n"
+        "   - Если написано 'каждый день' или 'ежедневно', верни push_frequency: 'everyday', push_days: 'everyday'.\n"
+        "   - Если указаны конкретные дни, верни push_frequency: 'custom', push_days: 'Monday,Wednesday' (названия на английском через запятую).\n"
+        "   - Если 'раз в месяц', верни push_frequency: 'monthly', push_days: 'everyday'.\n\n"
+        "Верни результат СТРОГО в формате JSON без лишнего текста:\n"
         "{\n"
         "  \"action\": \"settings_updated\" или \"none\",\n"
         "  \"theme\": \"light\" или \"dark\" или null,\n"
         "  \"push_time\": \"HH:MM\" или null,\n"
-        "  \"push_frequency\": \"...\" или null\n"
+        "  \"push_frequency\": \"...\" или null,\n"
+        "  \"push_days\": \"...\" или null\n"
         "}"
     )
     try:
@@ -348,19 +348,22 @@ def parse_and_apply_ai_intent(user_id, text_input):
             theme = data.get("theme")
             push_time = data.get("push_time")
             push_frequency = data.get("push_frequency")
+            push_days = data.get("push_days") # ДОБАВЛЕНО
             
             with engine.begin() as conn:
                 if push_time:
                     conn.execute(text("UPDATE users SET push_time = :pt WHERE user_id = :uid"), {"pt": push_time, "uid": user_id})
-                if push_frequency:
-                    conn.execute(text("UPDATE users SET push_frequency = :pf, push_days = :pf WHERE user_id = :uid"), {"pf": push_frequency, "uid": user_id})
+                if push_frequency and push_days:
+                    # ДОБАВЛЕНО: теперь значения пишутся раздельно
+                    conn.execute(text("UPDATE users SET push_frequency = :pf, push_days = :pd WHERE user_id = :uid"), {"pf": push_frequency, "pd": push_days, "uid": user_id})
 
             return {
                 "action": action,
                 "updated_fields": {
                     "theme": theme,
                     "push_time": push_time,
-                    "push_frequency": push_frequency
+                    "push_frequency": push_frequency,
+                    "push_days": push_days
                 }
             }
     except Exception as e:
@@ -625,14 +628,21 @@ async def handle_web_analysis(request: Request):
 async def get_user_history(user_id: int, tz: str = "UTC"):
     try:
         with engine.connect() as conn:
-            user_res = conn.execute(text("SELECT push_time, timezone, push_frequency FROM users WHERE user_id = :user_id"), {"user_id": user_id})
+            # ДОБАВЛЕНО: push_days в SELECT
+            user_res = conn.execute(text("SELECT push_time, timezone, push_frequency, push_days FROM users WHERE user_id = :user_id"), {"user_id": user_id})
             user_row = user_res.fetchone()
+            
             push_time = user_row[0] if user_row and user_row[0] else "09:00"
             user_tz_str = user_row[1] if user_row and user_row[1] else "UTC"
             push_frequency = user_row[2] if user_row and user_row[2] else "daily"
             
-            try: tz_obj = pytz.timezone(user_tz_str)
-            except: tz_obj = pytz.utc
+            # ДОБАВЛЕНО: Чтение push_days из результата
+            push_days = user_row[3] if user_row and len(user_row) > 3 and user_row[3] else "everyday"
+            
+            try: 
+                tz_obj = pytz.timezone(user_tz_str)
+            except: 
+                tz_obj = pytz.utc
             
             reports_res = conn.execute(text("SELECT input_text, report_text, created_at FROM reports WHERE user_id = :user_id ORDER BY created_at DESC"), {"user_id": user_id})
             history = []
@@ -644,7 +654,9 @@ async def get_user_history(user_id: int, tz: str = "UTC"):
                     "report_text": row[1],
                     "created_at": utc_dt.astimezone(tz_obj).strftime("%d.%m.%Y %H:%M")
                 })
-        return {"status": "success", "push_time": push_time, "push_frequency": push_frequency, "history": history}
+                
+        # ДОБАВЛЕНО: push_days в ответ
+        return {"status": "success", "push_time": push_time, "push_frequency": push_frequency, "push_days": push_days, "history": history}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
