@@ -957,12 +957,23 @@
                     });
                 }
             }
+            
+            // Если выбрали «Раз в месяц», можно автоматически подстраховать выбор дефолтного числа (например, 1-го или 28-го), 
+            // либо просто отправить актуальный массив на сервер:
             updatePushSettingsOnServer(); 
         }
 
         function getSelectedDays() {
             const checkboxes = document.querySelectorAll('input[name="push_days"]:checked');
-            return Array.from(checkboxes).map(cb => cb.value);
+            let days = Array.from(checkboxes).map(cb => cb.value);
+            
+            // Если пользователь выбрал «раз в месяц», передаем на бэкенд безопасный день по умолчанию (например, "1" или "28"), 
+            // чтобы планировщик точно знал дату, а не падал от пустой строки.
+            if (days.includes('monthly')) {
+                return ['1']; // Безопасный дефолт: 1-е число каждого месяца (можно поменять на '28')
+            }
+            
+            return days;
         }
 
         function updatePushSettingsOnServer() {
