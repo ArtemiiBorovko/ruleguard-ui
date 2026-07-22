@@ -594,12 +594,48 @@
                     if (data.push_time) {
                         document.getElementById('push_time').value = data.push_time;
                     }
-                    if (data.push_days && Array.isArray(data.push_days)) {
+                    
+                    // --- ОБНОВЛЕННЫЙ БЛОК ОБРАБОТКИ PUSH_DAYS ---
+                    if (data.push_days) {
+                        let daysArray = [];
+
+                        // 1. Приводим к массиву, даже если пришел JSON-строка, строка с запятыми или одиночное значение
+                        if (Array.isArray(data.push_days)) {
+                            daysArray = data.push_days;
+                        } else if (typeof data.push_days === 'string') {
+                            try {
+                                const parsed = JSON.parse(data.push_days);
+                                daysArray = Array.isArray(parsed) ? parsed : [data.push_days];
+                            } catch(e) {
+                                daysArray = data.push_days.includes(',') 
+                                    ? data.push_days.split(',').map(s => s.trim()) 
+                                    : [data.push_days];
+                            }
+                        }
+
+                        // 2. Словарь совпадений (русские названия, сокращения -> в атрибуты value ваших чекбоксов)
+                        const dayMap = {
+                            'everyday': 'everyday', 'ежедневно': 'everyday', 'каждый день': 'everyday',
+                            'mon': 'mon', 'понедельник': 'mon', 'пн': 'mon',
+                            'tue': 'tue', 'вторник': 'tue', 'вт': 'tue',
+                            'wed': 'wed', 'среда': 'wed', 'по средам': 'wed', 'ср': 'wed',
+                            'thu': 'thu', 'четверг': 'thu', 'чт': 'thu',
+                            'fri': 'fri', 'пятница': 'fri', 'пт': 'fri',
+                            'sat': 'sat', 'суббота': 'sat', 'сб': 'sat',
+                            'sun': 'sun', 'воскресенье': 'sun', 'вс': 'sun',
+                            'monthly': 'monthly', 'раз в месяц': 'monthly', 'ежемесячно': 'monthly'
+                        };
+
+                        const normalizedDays = daysArray.map(d => dayMap[String(d).toLowerCase().trim()] || String(d).toLowerCase().trim());
+
+                        // 3. Отмечаем чекбоксы
                         const checkboxes = document.querySelectorAll('input[name="push_days"]');
                         checkboxes.forEach(cb => {
-                            cb.checked = data.push_days.includes(cb.value);
+                            cb.checked = normalizedDays.includes(cb.value.toLowerCase().trim());
                         });
                     }
+                    // --------------------------------------------
+
                     // Заполнение расширенных полей профиля из БД, если они есть
                     if (data.profile) {
                         if (data.profile.country) document.getElementById('country').value = data.profile.country;
