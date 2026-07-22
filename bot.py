@@ -319,15 +319,15 @@ def parse_and_apply_ai_intent(user_id, text_input):
         "1. Тема интерфейса: 'light' или 'dark'. Иначе null.\n"
         "2. Время пушей: найди время в формате HH:MM. Иначе null.\n"
         "3. Частота и дни рассылки:\n"
-        "   - Если написано 'каждый день' или 'ежедневно', верни push_frequency: 'everyday', push_days: 'everyday'.\n"
-        "   - Если указаны конкретные дни, верни push_frequency: 'custom', push_days: 'Monday,Wednesday' (названия на английском через запятую).\n"
-        "   - Если 'раз в месяц', верни push_frequency: 'monthly', push_days: 'everyday'.\n\n"
+        "   - Если 'каждый день' или 'ежедневно', верни push_frequency: 'daily', push_days: 'everyday'.\n"
+        "   - Если указаны конкретные дни (например, среда и пятница), верни push_frequency: 'custom', push_days: список дней через запятую строго в формате кратких английских названий (mon, tue, wed, thu, fri, sat, sun).\n"
+        "   - Если 'раз в месяц', верни push_frequency: 'monthly', push_days: ''.\n\n"
         "Верни результат СТРОГО в формате JSON без лишнего текста:\n"
         "{\n"
         "  \"action\": \"settings_updated\" или \"none\",\n"
         "  \"theme\": \"light\" или \"dark\" или null,\n"
         "  \"push_time\": \"HH:MM\" или null,\n"
-        "  \"push_frequency\": \"...\" или null,\n"
+        "  \"push_frequency\": \"daily\", \"custom\", \"monthly\" или null,\n"
         "  \"push_days\": \"...\" или null\n"
         "}"
     )
@@ -348,14 +348,17 @@ def parse_and_apply_ai_intent(user_id, text_input):
             theme = data.get("theme")
             push_time = data.get("push_time")
             push_frequency = data.get("push_frequency")
-            push_days = data.get("push_days") # ДОБАВЛЕНО
+            push_days = data.get("push_days")
             
             with engine.begin() as conn:
                 if push_time:
                     conn.execute(text("UPDATE users SET push_time = :pt WHERE user_id = :uid"), {"pt": push_time, "uid": user_id})
-                if push_frequency and push_days:
-                    # ДОБАВЛЕНО: теперь значения пишутся раздельно
-                    conn.execute(text("UPDATE users SET push_frequency = :pf, push_days = :pd WHERE user_id = :uid"), {"pf": push_frequency, "pd": push_days, "uid": user_id})
+                
+                # Исправленная логика обновления частоты и дней
+                if push_frequency:
+                    # Если дни пустые (например, для monthly), сохраняем пустую строку, чтобы сбросить чекбоксы на фронте
+                    pd = push_days if push_days is not None else ""
+                    conn.execute(text("UPDATE users SET push_frequency = :pf, push_days = :pd WHERE user_id = :uid"), {"pf": push_frequency, "pd": pd, "uid": user_id})
 
             return {
                 "action": action,
@@ -1069,32 +1072,28 @@ def handle_text(message):
             safe_reply_to(message, f"⚠️ Ошибка: {e}")
         return
 
-    # 1. Сначала проверяем, не просит ли пользователь изменить настройки (время, дни, тему)
+    # 1. Проверяем, не просит ли пользователь изменить настройки (время, дни, тему)
     intent_result = parse_and_apply_ai_intent(user_id, text_msg)
     if intent_result.get("action") == "settings_updated":
         fields = intent_result.get("updated_fields", {})
         
         new_time = fields.get("push_time")
         new_freq = fields.get("push_frequency")
+        new_days = fields.get("push_days")
         new_theme = fields.get("theme")
 
-        # Формируем красивый ответ пользователю в зависимости от того, что реально изменилось
         updated_desc = []
         if new_time: updated_desc.append(f"время пушей: {new_time}")
         if new_freq: 
-            # Красиво переводим для отчета, если это дни недели
-            freq_text = "ежедневно" if new_freq == "everyday" else "ежемесячно" if new_freq == "monthly" else f"дни: {new_freq}"
-            updated_desc.append(f"расписание ({freq_text})")
-        if new_theme: updated_desc.append(f"тема: {new_theme}")
+            if new_freq == "daily" or new_freq == "everyday":
+                freq_text = "ежедневно"
+            elif new_freq == "monthly":
+                freq_text = "раз в месяц"
+            else:
+                # Показываем конкретные выбранные дни, если это custom
+                freq_text = f"выбранные дни ({new_days})" if new_days else "выбранные дни"
+            updated_desc.append(f"расписание: {freq_text}")
         
-        response_text = "⚙️ Настройки успешно обновлены: " + ", ".join(updated_desc) if updated_desc else "⚙️ Настройки обновлены."
-        safe_reply_to(message, response_text)
-        return
-
-        # Формируем красивый ответ для бота
-        updated_desc = []
-        if new_time: updated_desc.append(f"время пушей: {new_time}")
-        if new_freq: updated_desc.append(f"расписание: {new_freq}")
         if new_theme: updated_desc.append(f"тема: {new_theme}")
         
         response_text = "⚙️ Настройки успешно обновлены: " + ", ".join(updated_desc) if updated_desc else "⚙️ Настройки обновлены."
