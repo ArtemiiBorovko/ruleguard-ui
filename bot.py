@@ -70,7 +70,7 @@ def init_db():
                 business_description TEXT, 
                 push_time TEXT DEFAULT '09:00',
                 push_frequency TEXT DEFAULT 'daily',
-                push_days TEXT DEFAULT 'everyday', -- <--- ДОБАВЬ ЭТУ СТРОЧКУ
+                push_days TEXT DEFAULT 'everyday',
                 country TEXT,
                 location TEXT,
                 legal_form TEXT,
@@ -115,19 +115,19 @@ def init_db():
 
     try:
         with engine.begin() as conn:
-            conn.execute(text("ALTER TABLE users ADD COLUMN push_frequency TEXT DEFAULT 'daily';"))
-            conn.execute(text("ALTER TABLE users ADD COLUMN tax_system TEXT;"))
-            conn.execute(text("ALTER TABLE users ADD COLUMN employee_count INT;"))
-            conn.execute(text("ALTER TABLE users ADD COLUMN has_ip_rights BOOLEAN;"))
-            conn.execute(text("ALTER TABLE users ADD COLUMN online_sales BOOLEAN;"))
-            conn.execute(text("ALTER TABLE users ADD COLUMN annual_turnover_bracket TEXT;"))
-            conn.execute(text("ALTER TABLE users ADD COLUMN main_risk_zones TEXT;"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS push_frequency TEXT DEFAULT 'daily';"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS push_days TEXT DEFAULT 'everyday';"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS tax_system TEXT;"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS employee_count INT;"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS has_ip_rights BOOLEAN;"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS online_sales BOOLEAN;"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS annual_turnover_bracket TEXT;"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS main_risk_zones TEXT;"))
     except Exception:
         pass
 
 def save_user_data_extended(user_id, username=None, business=None, country=None, location=None, legal_form=None, push_time=None, timezone=None, tax_system=None, employee_count=None, has_ip_rights=None, online_sales=None, annual_turnover_bracket=None, main_risk_zones=None, push_frequency=None, push_days=None):
     with engine.begin() as conn:
-        # Безопасно добавляем недостающие колонки в базу, если их там физически еще нет
         try:
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS push_frequency TEXT DEFAULT 'daily';"))
             conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS push_days TEXT DEFAULT 'everyday';"))
@@ -140,7 +140,6 @@ def save_user_data_extended(user_id, username=None, business=None, country=None,
         except Exception:
             pass
 
-        # Делаем выборку существующих данных пользователя
         result = conn.execute(text("""
             SELECT user_name, business_description, country, location, legal_form, 
                    push_time, timezone, tax_system, employee_count, has_ip_rights, 
@@ -150,17 +149,14 @@ def save_user_data_extended(user_id, username=None, business=None, country=None,
         """), {"user_id": user_id})
         row = result.fetchone()
         
-        # Корректно обрабатываем дни недели (если пришел список с галочками типа ['mon', 'wed'], превращаем в строку, иначе сохраняем как есть)
         if isinstance(push_days, list):
             formatted_push_days = ",".join(push_days)
         else:
             formatted_push_days = push_days
 
-        # Обрабатываем зоны риска
         c_risks = json.dumps(main_risk_zones) if isinstance(main_risk_zones, list) else main_risk_zones
 
         if row:
-            # Если пользователь уже есть в базе, подтягиваем старые данные, если новые не переданы
             c_name = username if username is not None else row[0]
             c_bus = business if business is not None else row[1]
             c_country = country if country is not None else row[2]
@@ -191,7 +187,6 @@ def save_user_data_extended(user_id, username=None, business=None, country=None,
                 "turnover": c_turnover, "risks": c_risk_val, "freq": c_freq, "p_days": c_p_days, "user_id": user_id
             })
         else:
-            # Если пользователя нет, создаем новую запись с дефолтными значениями
             conn.execute(text('''
                 INSERT INTO users (
                     user_id, user_name, business_description, country, location, legal_form, 
@@ -267,7 +262,7 @@ def get_recent_chat_history(user_id, limit=6):
         print(f"Ошибка получения истории чата: {e}")
         return []
 
-# 3. УМНЫЙ РОУТЕР GROQ И ИНТЕЛЛЕКТУАЛЬНЫЙ ПАРСЕР КОМАНД СПРИНТА 3
+# 3. УМНЫЙ РОУТЕР GROQ И ИНТЕЛЛЕКТУАЛЬНЫЙ ПАРСЕР КОМАНД
 def safe_groq_request(messages, temperature=0.3, max_tokens=None, is_dispatcher=False):
     if is_dispatcher:
         primary_model = "llama-3.1-8b-instant"
@@ -311,7 +306,7 @@ def check_if_search_needed(history, current_input):
     except Exception:
         return True
 
-# --- СПРИНТ 3: Интеллектуальный парсер ИИ-команд из текста/голоса ---
+# Интеллектуальный парсер ИИ-команд
 def parse_and_apply_ai_intent(user_id, text_input):
     system_prompt = (
         "Ты — анализатор намерений пользователя в приложении RuleGuard.\n"
@@ -319,15 +314,15 @@ def parse_and_apply_ai_intent(user_id, text_input):
         "1. Тема интерфейса: 'light' или 'dark'. Иначе null.\n"
         "2. Время пушей: найди время в формате HH:MM. Иначе null.\n"
         "3. Частота и дни рассылки:\n"
-        "   - Если 'каждый день' или 'ежедневно', верни push_frequency: 'daily', push_days: 'everyday'.\n"
-        "   - Если указаны конкретные дни (например, среда и пятница), верни push_frequency: 'custom', push_days: список дней через запятую строго в формате кратких английских названий (mon, tue, wed, thu, fri, sat, sun).\n"
-        "   - Если 'раз в месяц', верни push_frequency: 'monthly', push_days: ''.\n\n"
+        "   - Если написано 'каждый день' или 'ежедневно', верни push_frequency: 'everyday', push_days: 'everyday'.\n"
+        "   - Если указаны конкретные дни, верни push_frequency: 'custom', push_days: 'Monday,Wednesday' (названия на английском через запятую).\n"
+        "   - Если 'раз в месяц', верни push_frequency: 'monthly', push_days: 'everyday'.\n\n"
         "Верни результат СТРОГО в формате JSON без лишнего текста:\n"
         "{\n"
         "  \"action\": \"settings_updated\" или \"none\",\n"
         "  \"theme\": \"light\" или \"dark\" или null,\n"
         "  \"push_time\": \"HH:MM\" или null,\n"
-        "  \"push_frequency\": \"daily\", \"custom\", \"monthly\" или null,\n"
+        "  \"push_frequency\": \"...\" или null,\n"
         "  \"push_days\": \"...\" или null\n"
         "}"
     )
@@ -353,12 +348,10 @@ def parse_and_apply_ai_intent(user_id, text_input):
             with engine.begin() as conn:
                 if push_time:
                     conn.execute(text("UPDATE users SET push_time = :pt WHERE user_id = :uid"), {"pt": push_time, "uid": user_id})
-                
-                # Исправленная логика обновления частоты и дней
                 if push_frequency:
-                    # Если дни пустые (например, для monthly), сохраняем пустую строку, чтобы сбросить чекбоксы на фронте
-                    pd = push_days if push_days is not None else ""
-                    conn.execute(text("UPDATE users SET push_frequency = :pf, push_days = :pd WHERE user_id = :uid"), {"pf": push_frequency, "pd": pd, "uid": user_id})
+                    conn.execute(text("UPDATE users SET push_frequency = :pf WHERE user_id = :uid"), {"pf": push_frequency, "uid": user_id})
+                if push_days:
+                    conn.execute(text("UPDATE users SET push_days = :pd WHERE user_id = :uid"), {"pd": push_days, "uid": user_id})
 
             return {
                 "action": action,
@@ -370,7 +363,7 @@ def parse_and_apply_ai_intent(user_id, text_input):
                 }
             }
     except Exception as e:
-        print(f"⚠️ Ошибка парсинга интента Спринта 3: {e}")
+        print(f"⚠️ Ошибка парсинга интента: {e}")
     
     return {"action": "none", "updated_fields": {}}
 
@@ -484,7 +477,7 @@ def get_legal_chat_reply(user_id, current_input_text):
         f"Текущий год: {current_year}.\n"
         f"Данные бизнеса клиента: {user_context}\n"
         f"Свежие данные из сети (если запрашивались): {web_context}\n\n"
-        "Отвечай коротко, по делу, понятным языком. Если пользователь просто здоровается или общается, поддерживай диалог. Пиши в увазительном тоне."
+        "Отвечай коротко, по делу, понятным языком. Если пользователь просто здоровается или общается, поддерживай диалог. Пиши в уважительном тоне."
     )
 
     messages_payload = [{"role": "system", "content": system_instruction}]
@@ -553,13 +546,9 @@ async def handle_webapp_chat_message(request: Request):
         text_msg = data.get('text', '').strip()
         if not text_msg: return {"status": "error", "message": "Empty text"}
         
-        # Спринт 3: Проверяем команды изменения настроек через чат
         intent_result = parse_and_apply_ai_intent(user_id, text_msg)
-        
         reply = get_legal_chat_reply(user_id, text_msg)
         
-        # Дублируем ответ в Telegram, если чат вызван из WebApp
-        flag = "🌐"
         try:
             bot.send_message(user_id, f"💬 <b>Сообщение из приложения:</b>\n{text_msg}\n\n🤖 <b>Ответ ИИ:</b>\n{reply}", parse_mode='HTML')
         except Exception:
@@ -597,14 +586,12 @@ async def handle_web_analysis(request: Request):
         annual_turnover_bracket = data.get('annual_turnover_bracket', None)
         main_risk_zones = data.get('main_risk_zones', None)
         
-        # Шаг 3 (исправленный): аккуратно достаем дни рассылки из пришедшего от фронтенда JSON
         raw_push_days = data.get('push_days', 'everyday')
         if isinstance(raw_push_days, list):
-            push_days_str = ",".join(raw_push_days)  # если пришел список галочек, делаем строку через запятую
+            push_days_str = ",".join(raw_push_days)
         else:
-            push_days_str = str(raw_push_days)       # если пришла строка (например, 'everyday' или 'monthly'), оставляем как есть
+            push_days_str = str(raw_push_days)
 
-        # Передаем все данные вместе с push_days в функцию сохранения
         save_user_data_extended(
             user_id, username=username, business=details, country=country, location=location, 
             legal_form=legal_form, push_time=push_time, timezone=user_tz, tax_system=tax_system, 
@@ -631,15 +618,12 @@ async def handle_web_analysis(request: Request):
 async def get_user_history(user_id: int, tz: str = "UTC"):
     try:
         with engine.connect() as conn:
-            # ДОБАВЛЕНО: push_days в SELECT
             user_res = conn.execute(text("SELECT push_time, timezone, push_frequency, push_days FROM users WHERE user_id = :user_id"), {"user_id": user_id})
             user_row = user_res.fetchone()
             
             push_time = user_row[0] if user_row and user_row[0] else "09:00"
             user_tz_str = user_row[1] if user_row and user_row[1] else "UTC"
             push_frequency = user_row[2] if user_row and user_row[2] else "daily"
-            
-            # ДОБАВЛЕНО: Чтение push_days из результата
             push_days = user_row[3] if user_row and len(user_row) > 3 and user_row[3] else "everyday"
             
             try: 
@@ -658,7 +642,6 @@ async def get_user_history(user_id: int, tz: str = "UTC"):
                     "created_at": utc_dt.astimezone(tz_obj).strftime("%d.%m.%Y %H:%M")
                 })
                 
-        # ДОБАВЛЕНО: push_days в ответ
         return {"status": "success", "push_time": push_time, "push_frequency": push_frequency, "push_days": push_days, "history": history}
     except Exception as e:
         return {"status": "error", "message": str(e)}
@@ -738,9 +721,7 @@ async def handle_webapp_voice(user_id: int, file: UploadFile = File(...)):
         if not user_text:
             return {"status": "error", "message": "Не удалось распознать речь. Попробуйте еще раз."}
             
-        # Спринт 3: Проверяем команды из аудиосообщения
         intent_result = parse_and_apply_ai_intent(user_id, user_text)
-            
         reply = get_legal_chat_reply(user_id, user_text)
         
         try:
@@ -785,7 +766,6 @@ async def reanalyze(user_id: int):
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-# API для сбора статистики из базы
 @app.get("/api/admin/stats")
 def get_admin_stats(admin: str = Depends(get_current_admin)):
     try:
@@ -902,7 +882,7 @@ def get_admin_dashboard(admin: str = Depends(get_current_admin)):
         </div>
 
         <div class="table-container">
-            <h3 style="margin-top: 0; color: #34C759;"><i class="fa-solid fa-users"></i> Детальные данные пользователей (Целевая аудитория)</h3>
+            <h3 style="margin-top: 0; color: #34C759;"><i class="fa-solid fa-users"></i> Детальные данные пользователей</h3>
             <table>
                 <thead>
                     <tr>
@@ -1037,7 +1017,7 @@ def smart_ping_render():
         except: pass
 
 # =====================================================================
-# ОБРАБОТЧИКИ ДЛЯ ПРЯМОГО ПОТОКА ТЕЛЕГРАМ (ДИАЛОГ В ЧАТЕ)
+# ОБРАБОТЧИКИ ТЕЛЕГРАМ
 # =====================================================================
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
@@ -1072,35 +1052,27 @@ def handle_text(message):
             safe_reply_to(message, f"⚠️ Ошибка: {e}")
         return
 
-    # 1. Проверяем, не просит ли пользователь изменить настройки (время, дни, тему)
+    # 1. Проверяем команды изменения настроек через чат
     intent_result = parse_and_apply_ai_intent(user_id, text_msg)
     if intent_result.get("action") == "settings_updated":
         fields = intent_result.get("updated_fields", {})
         
         new_time = fields.get("push_time")
         new_freq = fields.get("push_frequency")
-        new_days = fields.get("push_days")
         new_theme = fields.get("theme")
 
         updated_desc = []
         if new_time: updated_desc.append(f"время пушей: {new_time}")
         if new_freq: 
-            if new_freq == "daily" or new_freq == "everyday":
-                freq_text = "ежедневно"
-            elif new_freq == "monthly":
-                freq_text = "раз в месяц"
-            else:
-                # Показываем конкретные выбранные дни, если это custom
-                freq_text = f"выбранные дни ({new_days})" if new_days else "выбранные дни"
-            updated_desc.append(f"расписание: {freq_text}")
-        
+            freq_text = "ежедневно" if new_freq == "everyday" else "ежемесячно" if new_freq == "monthly" else f"дни: {new_freq}"
+            updated_desc.append(f"расписание ({freq_text})")
         if new_theme: updated_desc.append(f"тема: {new_theme}")
         
         response_text = "⚙️ Настройки успешно обновлены: " + ", ".join(updated_desc) if updated_desc else "⚙️ Настройки обновлены."
         safe_reply_to(message, response_text)
         return
 
-    # 2. Если это обычный вопрос или обсуждение — отправляем юристу-аналитику
+    # 2. Обычный вопрос или диалог
     run_legal_analysis(message, text_msg)
 
 @bot.message_handler(content_types=['voice'])
