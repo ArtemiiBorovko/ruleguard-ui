@@ -1060,22 +1060,24 @@ def handle_text(message):
     # 1. Сначала проверяем, не просит ли пользователь изменить настройки (время, дни, тему)
     intent_result = parse_and_apply_ai_intent(user_id, text_msg)
     if intent_result.get("action") == "settings_updated":
-        fields = intent_result.get("updated_fields", {}) # или просто intent_result, в зависимости от структуры
+        fields = intent_result.get("updated_fields", {})
         
-        # Получаем данные от ИИ
-        new_time = intent_result.get("push_time")
-        new_freq = intent_result.get("push_frequency") # тут прилетает 'everyday', 'monthly' или дни недели
-        new_theme = intent_result.get("theme")
+        new_time = fields.get("push_time")
+        new_freq = fields.get("push_frequency")
+        new_theme = fields.get("theme")
+
+        # Формируем красивый ответ пользователю в зависимости от того, что реально изменилось
+        updated_desc = []
+        if new_time: updated_desc.append(f"время пушей: {new_time}")
+        if new_freq: 
+            # Красиво переводим для отчета, если это дни недели
+            freq_text = "ежедневно" if new_freq == "everyday" else "ежемесячно" if new_freq == "monthly" else f"дни: {new_freq}"
+            updated_desc.append(f"расписание ({freq_text})")
+        if new_theme: updated_desc.append(f"тема: {new_theme}")
         
-        # СОХРАНЯЕМ ВСЁ В БАЗУ ДАННЫХ
-        with engine.begin() as conn:
-            if new_time:
-                conn.execute(text("UPDATE users SET push_time = :pt WHERE user_id = :uid"), {"pt": new_time, "uid": user_id})
-            if new_freq:
-                # ВАЖНО: сохраняем и частоту, и дни, чтобы фронтенд (галочки) это увидел
-                conn.execute(text("UPDATE users SET push_frequency = :pf, push_days = :pf WHERE user_id = :uid"), {"pf": new_freq, "uid": user_id})
-            if new_theme:
-                conn.execute(text("UPDATE users SET theme = :th WHERE user_id = :uid"), {"th": new_theme, "uid": user_id})
+        response_text = "⚙️ Настройки успешно обновлены: " + ", ".join(updated_desc) if updated_desc else "⚙️ Настройки обновлены."
+        safe_reply_to(message, response_text)
+        return
 
         # Формируем красивый ответ для бота
         updated_desc = []
