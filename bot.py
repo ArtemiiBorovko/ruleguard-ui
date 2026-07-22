@@ -597,19 +597,22 @@ async def handle_web_analysis(request: Request):
         annual_turnover_bracket = data.get('annual_turnover_bracket', None)
         main_risk_zones = data.get('main_risk_zones', None)
         
-        # Шаг 3 (исправленный): аккуратно достаем дни рассылки из пришедшего от фронтенда JSON
+        # ДОБАВЛЕНО: Считываем частоту пушей из запроса фронтенда
+        push_frequency = data.get('push_frequency', 'daily')
+        
         raw_push_days = data.get('push_days', 'everyday')
         if isinstance(raw_push_days, list):
-            push_days_str = ",".join(raw_push_days)  # если пришел список галочек, делаем строку через запятую
+            push_days_str = ",".join(raw_push_days)
         else:
-            push_days_str = str(raw_push_days)       # если пришла строка (например, 'everyday' или 'monthly'), оставляем как есть
+            push_days_str = str(raw_push_days)
 
-        # Передаем все данные вместе с push_days в функцию сохранения
+        # ДОБАВЛЕНО: Передаем push_frequency в функцию сохранения
         save_user_data_extended(
             user_id, username=username, business=details, country=country, location=location, 
             legal_form=legal_form, push_time=push_time, timezone=user_tz, tax_system=tax_system, 
             employee_count=employee_count, has_ip_rights=has_ip_rights, online_sales=online_sales, 
             annual_turnover_bracket=annual_turnover_bracket, main_risk_zones=main_risk_zones,
+            push_frequency=push_frequency,
             push_days=push_days_str
         )
         
@@ -986,11 +989,12 @@ def get_admin_dashboard(admin: str = Depends(get_current_admin)):
 def send_daily_push_notifications():
     try:
         with engine.connect() as conn:
-            result = conn.execute(text("SELECT user_id, user_name, business_description, location, push_time, timezone, country, legal_form, last_push_date FROM users"))
+            # ДОБАВЛЕНО: выбираем также push_frequency и push_days из базы
+            result = conn.execute(text("SELECT user_id, user_name, business_description, location, push_time, timezone, country, legal_form, last_push_date, push_frequency, push_days FROM users"))
             all_users = result.fetchall()
         
         for user in all_users:
-            user_id, username, business, location, push_time, user_tz, country, legal_form, last_push_date = user
+            user_id, username, business, location, push_time, user_tz, country, legal_form, last_push_date, push_frequency, push_days = user
             if not location or not business: continue
             if not user_tz: user_tz = 'UTC'
                 
@@ -998,35 +1002,59 @@ def send_daily_push_notifications():
             now_tz = datetime.now(tz)
             today_date = now_tz.date()
             
+            # Если сегодня уже отправляли, пропускаем
+            if last_push_date == today_date:
+                continue
+                
+            # Проверяем условия частоты рассылки
+            should_send = False
+            freq = (push_frequency or 'daily').lower()
+            
+            if freq in ['daily', 'everyday']:
+                should_send = True
+            elif freq == 'monthly':
+                # Отправляем, если уведомления еще не отправлялись ни разу или прошло 30 и более дней
+                if last_push_date is None or (today_date - last_push_date).days >= 30:
+                    should_send = True
+            elif freq == 'custom':
+                # Проверяем, входит ли текущий день недели в разрешенные дни (например, mon, wed)
+                current_day_str = now_tz.strftime('%a').lower() # mon, tue, wed, thu, fri, sat, sun
+                days_list = [d.strip().lower() for d in (push_days or '').split(',') if d.strip()]
+                if current_day_str in days_list:
+                    should_send = True
+
+            if not should_send:
+                continue
+            
             try:
                 push_hour, push_minute = map(int, push_time.split(':'))
             except Exception:
                 push_hour, push_minute = 9, 0
             
+            # Проверяем, наступило ли заданное время
             if (now_tz.hour > push_hour or (now_tz.hour == push_hour and now_tz.minute >= push_minute)):
-                if last_push_date != today_date:
-                    search_query = f"{country or ''} {location or ''} {legal_form or ''} {business or ''}"
-                    web_data = search_internet(search_query)
-                    
-                    messages = [
-                        {"role": "system", "content": "Ты — ИИ-юрист RuleGuard. Напиши очень краткую сводку законов на сегодня (2-3 предложения)."},
-                        {"role": "user", "content": f"Бизнес: {business}, Локация: {location}. Данные: {web_data}"}
-                    ]
-                    bot_response = safe_groq_request(messages, temperature=0.4)
-                    
-                    try:
-                        bot.send_message(user_id, f"🛡️ <b>Ежедневный RuleGuard Радар</b>\n\n{bot_response}", parse_mode="HTML")
-                    except Exception:
-                        bot.send_message(user_id, f"🛡️ Ежедневный RuleGuard Радар\n\n{bot_response}")
-                    
-                    try:
-                        with engine.begin() as update_conn:
-                            update_conn.execute(
-                                text("UPDATE users SET last_push_date = :today WHERE user_id = :uid"), 
-                                {"today": today_date, "uid": user_id}
-                            )
-                    except Exception as db_err:
-                        print(f"Ошибка обновления даты пуша для {user_id}: {db_err}")
+                search_query = f"{country or ''} {location or ''} {legal_form or ''} {business or ''}"
+                web_data = search_internet(search_query)
+                
+                messages = [
+                    {"role": "system", "content": "Ты — ИИ-юрист RuleGuard. Напиши очень краткую сводку законов на сегодня (2-3 предложения)."},
+                    {"role": "user", "content": f"Бизнес: {business}, Локация: {location}. Данные: {web_data}"}
+                ]
+                bot_response = safe_groq_request(messages, temperature=0.4)
+                
+                try:
+                    bot.send_message(user_id, f"🛡️ <b>Ежедневный RuleGuard Радар</b>\n\n{bot_response}", parse_mode="HTML")
+                except Exception:
+                    bot.send_message(user_id, f"🛡️ Ежедневный RuleGuard Радар\n\n{bot_response}")
+                
+                try:
+                    with engine.begin() as update_conn:
+                        update_conn.execute(
+                            text("UPDATE users SET last_push_date = :today WHERE user_id = :uid"), 
+                            {"today": today_date, "uid": user_id}
+                        )
+                except Exception as db_err:
+                    print(f"Ошибка обновления даты пуша для {user_id}: {db_err}")
 
     except Exception as e:
         print(f"Ошибка планировщика пушей: {e}")
