@@ -1014,8 +1014,8 @@ def send_daily_push_notifications():
             if freq in ['daily', 'everyday']:
                 should_send = True
             elif freq == 'monthly':
-                # Отправляем, если уведомления еще не отправлялись ни разу или прошло 30 и более дней
-                if last_push_date is None or (today_date - last_push_date).days >= 30:
+                # Отправляем строго 1-го числа каждого месяца
+                if today_date.day == 1:
                     should_send = True
             elif freq == 'custom':
                 # Проверяем, входит ли текущий день недели в разрешенные дни (например, mon, wed)
@@ -1027,7 +1027,8 @@ def send_daily_push_notifications():
                     
                 # ИСПРАВЛЕНИЕ: Перехватываем 'monthly', если он прилетел как день недели
                 if 'monthly' in days_list:
-                    if last_push_date is None or (today_date - last_push_date).days >= 30:
+                    # Отправляем строго 1-го числа каждого месяца
+                    if today_date.day == 1:
                         should_send = True
 
             if not should_send:
