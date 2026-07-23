@@ -321,7 +321,7 @@ def parse_and_apply_ai_intent(user_id, text_input):
         "3. Частота и дни рассылки:\n"
         "   - Если 'каждый день' или 'ежедневно', верни push_frequency: 'daily', push_days: 'everyday'.\n"
         "   - Если указаны конкретные дни (например, среда и пятница), верни push_frequency: 'custom', push_days: список дней через запятую строго в формате кратких английских названий (mon, tue, wed, thu, fri, sat, sun).\n"
-        "   - Если 'раз в месяц', верни push_frequency: 'monthly', push_days: ''.\n\n"
+        "   - Если 'раз в месяц', верни push_frequency: 'monthly', push_days: 'monthly'.\n\n"
         "Верни результат СТРОГО в формате JSON без лишнего текста:\n"
         "{\n"
         "  \"action\": \"settings_updated\" или \"none\",\n"
@@ -643,7 +643,8 @@ async def get_user_history(user_id: int, tz: str = "UTC"):
             push_frequency = user_row[2] if user_row and user_row[2] else "daily"
             
             # ДОБАВЛЕНО: Чтение push_days из результата
-            push_days = user_row[3] if user_row and len(user_row) > 3 and user_row[3] else "everyday"
+            # Явно проверяем на None, чтобы пустая строка или falsy-значения не сбрасывали настройку
+            push_days = user_row[3] if user_row and len(user_row) > 3 and user_row[3] is not None else "everyday"
             
             try: 
                 tz_obj = pytz.timezone(user_tz_str)
