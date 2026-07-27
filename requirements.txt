@@ -10,3 +10,4 @@ psycopg2-binary
 sqlalchemy
 pypdf==4.2.0
 docx2txt==0.8
+fpdf2==2.7.9
