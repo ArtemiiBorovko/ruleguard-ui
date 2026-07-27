@@ -1171,54 +1171,27 @@ function renderArchive(historyArray) {
         updateBusinessForms();
         loadTheme();
         loadDataFromServer();
-        async function downloadPdf(btnElement, reportText) {
+        function downloadPdf(btnElement, reportText) {
             const originalHTML = btnElement.innerHTML;
-            btnElement.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Формирую...';
+            btnElement.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Ссылка...';
             btnElement.disabled = true;
 
-            try {
-                // Отправляем запрос на бэкенд для генерации PDF
-                const response = await fetch(`${BACKEND_URL}/api/generate-pdf`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: reportText })
-                });
-                
-                if (response.ok) {
-                    const blob = await response.blob();
-                    const url = window.URL.createObjectURL(blob);
-                    
-                    // Проверяем, запущены ли мы внутри Telegram WebApp
-                    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.openLink) {
-                        // Если бэкенд может отдавать файл по прямой ссылке, лучше открывать её через Telegram API.
-                        // Но так как у нас blob, используем надежный обход через создание временной ссылки 
-                        // БЕЗ target="_blank" — пусть браузер внутри Telegram обработает скачивание напрямую.
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = 'RuleGuard_Audit.pdf';
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                    } else {
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = 'RuleGuard_Audit.pdf';
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                    }
-                    
-                    setTimeout(() => window.URL.revokeObjectURL(url), 1000);
-                } else {
-                    alert('Ошибка сервера при генерации документа.');
-                }
-            } catch (e) {
-                console.error('Сбой загрузки PDF:', e);
-                alert('Ошибка сети. Проверьте подключение.');
-            } finally {
+            // Кодируем текст отчета, чтобы передать его в GET-параметре через URL
+            const encodedText = encodeURIComponent(reportText);
+            const downloadUrl = `${BACKEND_URL}/api/download-pdf?user_id=${userTelegramId}&text=${encodedText}`;
+
+            // Используем официальный метод Telegram WebApp для открытия ссылки во внешнем браузере устройства
+            if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.openLink) {
+                window.Telegram.WebApp.openLink(downloadUrl);
+            } else {
+                window.open(downloadUrl, '_blank');
+            }
+
+            // Возвращаем кнопку в исходное состояние через секунду
+            setTimeout(() => {
                 btnElement.innerHTML = originalHTML;
                 btnElement.disabled = false;
-            }
+            }, 1000);
         }
     </script>
 </body>
