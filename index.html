@@ -1177,6 +1177,7 @@ function renderArchive(historyArray) {
             btnElement.disabled = true;
 
             try {
+                // Отправляем запрос на бэкенд для генерации PDF
                 const response = await fetch(`${BACKEND_URL}/api/generate-pdf`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1187,20 +1188,27 @@ function renderArchive(historyArray) {
                     const blob = await response.blob();
                     const url = window.URL.createObjectURL(blob);
                     
-                    // Создаем невидимую ссылку с атрибутом download
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'RuleGuard_Audit.pdf';
+                    // Проверяем, запущены ли мы внутри Telegram WebApp
+                    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.openLink) {
+                        // Если бэкенд может отдавать файл по прямой ссылке, лучше открывать её через Telegram API.
+                        // Но так как у нас blob, используем надежный обход через создание временной ссылки 
+                        // БЕЗ target="_blank" — пусть браузер внутри Telegram обработает скачивание напрямую.
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'RuleGuard_Audit.pdf';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                    } else {
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'RuleGuard_Audit.pdf';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                    }
                     
-                    // Указываем _blank, чтобы Telegram открыл документ во внешнем системном браузере (Safari/Chrome),
-                    // где файл скачается без каких-либо блокировок CSP и песочниц.
-                    a.target = '_blank';
-                    
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    
-                    window.URL.revokeObjectURL(url);
+                    setTimeout(() => window.URL.revokeObjectURL(url), 1000);
                 } else {
                     alert('Ошибка сервера при генерации документа.');
                 }
