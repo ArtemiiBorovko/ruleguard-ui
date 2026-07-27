@@ -1243,7 +1243,7 @@ def setup_webhook_on_startup():
     print(f"🚀 Роутер Вебхука успешно зарегистрирован на URL: {webhook_url}")
 
 # =====================================================================
-# ДОБАВЛЕНО: Эндпоинт для генерации PDF "на лету" из архива (POST)
+# Эндпоинт для генерации PDF (POST)
 # =====================================================================
 @app.post("/api/generate-pdf")
 async def generate_pdf(request: Request):
@@ -1251,31 +1251,43 @@ async def generate_pdf(request: Request):
         data = await request.json()
         report_text = data.get("text", "Отчет пуст")
         
-        # Автоматически скачиваем шрифт с кириллицей прямо на сервер, если его там еще нет
         font_path = "DejaVuSans.ttf"
+        font_loaded = True
+        
         if not os.path.exists(font_path):
-            urllib.request.urlretrieve("https://github.com/matomo-org/travis-scripts/raw/master/fonts/DejaVuSans.ttf", font_path)
+            try:
+                font_url = "https://github.com/matomo-org/travis-scripts/raw/master/fonts/DejaVuSans.ttf"
+                urllib.request.urlretrieve(font_url, font_path)
+            except Exception as font_err:
+                print(f"⚠️ Не удалось скачать шрифт DejaVu: {font_err}")
+                font_loaded = False
             
         pdf = FPDF()
         pdf.add_page()
-        pdf.add_font("DejaVu", "", font_path)
+        
+        if font_loaded and os.path.exists(font_path):
+            pdf.add_font("DejaVu", "", font_path)
+            pdf.set_font("DejaVu", size=16)
+        else:
+            pdf.set_font("Helvetica", size=16)
         
         # Рисуем заголовок
-        pdf.set_font("DejaVu", size=16)
         pdf.cell(0, 10, "Юридический отчет RuleGuard", align="C", new_x="LMARGIN", new_y="NEXT")
         pdf.ln(5)
         
-        # Рисуем основной текст 
-        pdf.set_font("DejaVu", size=11)
-        
-        # Мягко удаляем эмодзи, так как строгие форматы PDF могут на них "споткнуться"
+        # Мягко удаляем эмодзи
         clean_text = report_text
         for emoji in ["🔥", "🛡️", "📊", "🔎", "⚠️", "🛠️", "📋", "🗣️", "⚙️", "🚀", "🔄", "📭", "⏳", "📥", "❌", "💬", "🤖"]:
             clean_text = clean_text.replace(emoji, "")
             
-        pdf.multi_cell(0, 6, clean_text)
+        if font_loaded and os.path.exists(font_path):
+            pdf.set_font("DejaVu", size=11)
+            pdf.multi_cell(0, 6, clean_text)
+        else:
+            safe_text = clean_text.encode('latin-1', 'ignore').decode('latin-1')
+            pdf.set_font("Helvetica", size=10)
+            pdf.multi_cell(0, 6, safe_text)
         
-        # Отдаем файл в оперативную память и возвращаем пользователю
         pdf_buffer = pdf.output()
         
         return Response(
@@ -1286,10 +1298,10 @@ async def generate_pdf(request: Request):
     except Exception as e:
         print(f"Ошибка при генерации PDF: {e}")
         return {"status": "error", "message": str(e)}
-    
+
 
 # =====================================================================
-# ИСПРАВЛЕНО: Эндпоинт для скачивания PDF через GET (для Telegram openLink)
+# Эндпоинт для скачивания PDF через GET (для Telegram openLink)
 # =====================================================================
 @app.get("/api/download-pdf")
 async def download_pdf_get(text: str = "Отчет пуст"):
@@ -1297,7 +1309,6 @@ async def download_pdf_get(text: str = "Отчет пуст"):
         font_path = "DejaVuSans.ttf"
         font_loaded = True
         
-        # Проверяем наличие шрифта, если нет — пытаемся скачать по рабочей ссылке
         if not os.path.exists(font_path):
             try:
                 font_url = "https://github.com/matomo-org/travis-scripts/raw/master/fonts/DejaVuSans.ttf"
@@ -1309,18 +1320,15 @@ async def download_pdf_get(text: str = "Отчет пуст"):
         pdf = FPDF()
         pdf.add_page()
         
-        # Если шрифт успешно скачался — используем его (поддерживает кириллицу)
         if font_loaded and os.path.exists(font_path):
             pdf.add_font("DejaVu", "", font_path)
             pdf.set_font("DejaVu", size=14)
         else:
-            # Запасной вариант, если скачать шрифт не удалось
-            pdf.set_font("Arial", size=12)
+            pdf.set_font("Helvetica", size=12)
             
         pdf.cell(0, 10, "Юридический отчет RuleGuard", align="C", new_x="LMARGIN", new_y="NEXT")
         pdf.ln(5)
         
-        # Чистим эмодзи
         clean_text = text
         for emoji in ["🔥", "🛡️", "📊", "🔎", "⚠️", "🛠️", "📋", "🗣️", "⚙️", "🚀", "🔄", "📭", "⏳", "📥", "❌", "💬", "🤖"]:
             clean_text = clean_text.replace(emoji, "")
@@ -1329,9 +1337,8 @@ async def download_pdf_get(text: str = "Отчет пуст"):
             pdf.set_font("DejaVu", size=11)
             pdf.multi_cell(0, 6, clean_text)
         else:
-            # Если шрифта нет, конвертируем в latin-1, чтобы FPDF не вылетал с фатальной ошибкой
             safe_text = clean_text.encode('latin-1', 'ignore').decode('latin-1')
-            pdf.set_font("Arial", size=10)
+            pdf.set_font("Helvetica", size=10)
             pdf.multi_cell(0, 6, safe_text)
             
         pdf_buffer = pdf.output()
