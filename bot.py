@@ -9,6 +9,12 @@ from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 import pypdf
 import docx2txt
+import os
+import urllib.request
+from fastapi import FastAPI, Request, Response
+from fpdf import FPDF
+
+# ... дальше идет остальной твой код ...
 
 from fastapi.responses import HTMLResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
@@ -1234,3 +1240,48 @@ def setup_webhook_on_startup():
     webhook_url = f"{RENDER_APP_URL}/api/telegram-webhook"
     bot.set_webhook(url=webhook_url)
     print(f"🚀 Роутер Вебхука успешно зарегистрирован на URL: {webhook_url}")
+
+# =====================================================================
+# ДОБАВЛЕНО: Эндпоинт для генерации PDF "на лету" из архива
+# =====================================================================
+@app.post("/api/generate-pdf")
+async def generate_pdf(request: Request):
+    try:
+        data = await request.json()
+        report_text = data.get("text", "Отчет пуст")
+        
+        # Автоматически скачиваем шрифт с кириллицей прямо на сервер, если его там еще нет
+        font_path = "DejaVuSans.ttf"
+        if not os.path.exists(font_path):
+            urllib.request.urlretrieve("https://github.com/matomo-org/travis-scripts/raw/master/fonts/DejaVuSans.ttf", font_path)
+            
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.add_font("DejaVu", "", font_path)
+        
+        # Рисуем заголовок
+        pdf.set_font("DejaVu", size=16)
+        pdf.cell(0, 10, "Юридический отчет RuleGuard", align="C", new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(5)
+        
+        # Рисуем основной текст
+        pdf.set_font("DejaVu", size=11)
+        
+        # Мягко удаляем эмодзи, так как строгие форматы PDF могут на них "споткнуться"
+        clean_text = report_text
+        for emoji in ["🔥", "🛡️", "📊", "🔎", "⚠️", "🛠️", "📋", "🗣️", "⚙️", "🚀", "🔄", "📭", "⏳", "📥", "❌", "💬", "🤖"]:
+            clean_text = clean_text.replace(emoji, "")
+            
+        pdf.multi_cell(0, 6, clean_text)
+        
+        # Отдаем файл в оперативную память и возвращаем пользователю
+        pdf_buffer = pdf.output()
+        
+        return Response(
+            content=pdf_buffer, 
+            media_type="application/pdf", 
+            headers={"Content-Disposition": "attachment; filename=RuleGuard_Report.pdf"}
+        )
+    except Exception as e:
+        print(f"Ошибка при генерации PDF: {e}")
+        return {"status": "error", "message": str(e)}
