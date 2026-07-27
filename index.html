@@ -1182,16 +1182,25 @@ function renderArchive(historyArray) {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ text: reportText })
                 });
-
+                
                 if (response.ok) {
                     const blob = await response.blob();
                     const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = 'RuleGuard_Audit.pdf';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
+                    
+                    // Проверяем, открыты ли мы внутри Telegram WebApp
+                    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.openLink) {
+                        // Если да, создаем временную ссылку и открываем её через системный механизм
+                        window.open(url, '_blank');
+                    } else {
+                        // Обычный способ для ПК/браузера
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'RuleGuard_Audit.pdf';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                    }
+                    
                     window.URL.revokeObjectURL(url);
                 } else {
                     alert('Ошибка сервера при генерации документа.');
