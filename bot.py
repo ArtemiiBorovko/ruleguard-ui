@@ -1242,7 +1242,7 @@ def setup_webhook_on_startup():
     print(f"🚀 Роутер Вебхука успешно зарегистрирован на URL: {webhook_url}")
 
 # =====================================================================
-# ДОБАВЛЕНО: Эндпоинт для генерации PDF "на лету" из архива
+# ДОБАВЛЕНО: Эндпоинт для генерации PDF "на лету" из архива (POST)
 # =====================================================================
 @app.post("/api/generate-pdf")
 async def generate_pdf(request: Request):
@@ -1286,35 +1286,39 @@ async def generate_pdf(request: Request):
         print(f"Ошибка при генерации PDF: {e}")
         return {"status": "error", "message": str(e)}
     
-    @app.get("/api/download-pdf")
-    async def download_pdf_get(text: str = "Отчет пуст"):
-        try:
-            font_path = "DejaVuSans.ttf"
-            if not os.path.exists(font_path):
-                urllib.request.urlretrieve("https://github.com/matomo-org/travis-scripts/raw/master/fonts/DejaVuSans.ttf", font_path)
-                
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.add_font("DejaVu", "", font_path)
+
+# =====================================================================
+# ДОБАВЛЕНО: Эндпоинт для скачивания PDF через GET (для Telegram openLink)
+# =====================================================================
+@app.get("/api/download-pdf")
+async def download_pdf_get(text: str = "Отчет пуст"):
+    try:
+        font_path = "DejaVuSans.ttf"
+        if not os.path.exists(font_path):
+            urllib.request.urlretrieve("https://github.com/matomo-org/travis-scripts/raw/master/fonts/DejaVuSans.ttf", font_path)
             
-            pdf.set_font("DejaVu", size=16)
-            pdf.cell(0, 10, "Юридический отчет RuleGuard", align="C", new_x="LMARGIN", new_y="NEXT")
-            pdf.ln(5)
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.add_font("DejaVu", "", font_path)
+        
+        pdf.set_font("DejaVu", size=16)
+        pdf.cell(0, 10, "Юридический отчет RuleGuard", align="C", new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(5)
+        
+        pdf.set_font("DejaVu", size=11)
+        
+        clean_text = text
+        for emoji in ["🔥", "🛡️", "📊", "🔎", "⚠️", "🛠️", "📋", "🗣️", "⚙️", "🚀", "🔄", "📭", "⏳", "📥", "❌", "💬", "🤖"]:
+            clean_text = clean_text.replace(emoji, "")
             
-            pdf.set_font("DejaVu", size=11)
-            
-            clean_text = text
-            for emoji in ["🔥", "🛡️", "📊", "🔎", "⚠️", "🛠️", "📋", "🗣️", "⚙️", "🚀", "🔄", "📭", "⏳", "📥", "❌", "💬", "🤖"]:
-                clean_text = clean_text.replace(emoji, "")
-                
-            pdf.multi_cell(0, 6, clean_text)
-            pdf_buffer = pdf.output()
-            
-            return Response(
-                content=pdf_buffer, 
-                media_type="application/pdf", 
-                headers={"Content-Disposition": "attachment; filename=RuleGuard_Report.pdf"}
-            )
-        except Exception as e:
-            print(f"Ошибка при генерации PDF (GET): {e}")
-            return {"status": "error", "message": str(e)}
+        pdf.multi_cell(0, 6, clean_text)
+        pdf_buffer = pdf.output()
+        
+        return Response(
+            content=pdf_buffer, 
+            media_type="application/pdf", 
+            headers={"Content-Disposition": "attachment; filename=RuleGuard_Report.pdf"}
+        )
+    except Exception as e:
+        print(f"Ошибка при генерации PDF (GET): {e}")
+        return {"status": "error", "message": str(e)}
