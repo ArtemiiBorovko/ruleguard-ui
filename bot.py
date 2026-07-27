@@ -1295,7 +1295,9 @@ async def download_pdf_get(text: str = "Отчет пуст"):
     try:
         font_path = "DejaVuSans.ttf"
         if not os.path.exists(font_path):
-            urllib.request.urlretrieve("https://github.com/matomo-org/travis-scripts/raw/master/fonts/DejaVuSans.ttf", font_path)
+            # Исправленная рабочая ссылка на зеркало шрифта
+            font_url = "https://raw.githubusercontent.com/dejavu-fonts/dejavu-fonts-ttf/master/ttf/DejaVuSans.ttf"
+            urllib.request.urlretrieve(font_url, font_path)
             
         pdf = FPDF()
         pdf.add_page()
