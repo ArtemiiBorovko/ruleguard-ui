@@ -1252,15 +1252,19 @@ async def generate_pdf(request: Request):
         report_text = data.get("text", "Отчет пуст")
         
         font_path = "DejaVuSans.ttf"
-        font_loaded = True
+        font_loaded = False
         
         if not os.path.exists(font_path):
             try:
-                font_url = "https://github.com/matomo-org/travis-scripts/raw/master/fonts/DejaVuSans.ttf"
+                # Используем альтернативную прямую ссылку
+                font_url = "https://www.freedesignclub.com/wp-content/uploads/2019/08/DejaVuSans.ttf"
                 urllib.request.urlretrieve(font_url, font_path)
-            except Exception as font_err:
-                print(f"⚠️ Не удалось скачать шрифт DejaVu: {font_err}")
-                font_loaded = False
+                font_loaded = True
+            except Exception as e:
+                print(f"Не удалось скачать шрифт: {e}")
+        
+        if os.path.exists(font_path):
+            font_loaded = True
             
         pdf = FPDF()
         pdf.add_page()
@@ -1307,15 +1311,19 @@ async def generate_pdf(request: Request):
 async def download_pdf_get(text: str = "Отчет пуст"):
     try:
         font_path = "DejaVuSans.ttf"
-        font_loaded = True
+        font_loaded = False
         
         if not os.path.exists(font_path):
             try:
-                font_url = "https://github.com/matomo-org/travis-scripts/raw/master/fonts/DejaVuSans.ttf"
+                # Используем альтернативную прямую ссылку
+                font_url = "https://www.freedesignclub.com/wp-content/uploads/2019/08/DejaVuSans.ttf"
                 urllib.request.urlretrieve(font_url, font_path)
-            except Exception as font_err:
-                print(f"⚠️ Не удалось скачать шрифт DejaVu: {font_err}")
-                font_loaded = False
+                font_loaded = True
+            except Exception as e:
+                print(f"Не удалось скачать шрифт: {e}")
+        
+        if os.path.exists(font_path):
+            font_loaded = True
 
         pdf = FPDF()
         pdf.add_page()
