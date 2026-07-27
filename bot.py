@@ -1242,6 +1242,14 @@ def setup_webhook_on_startup():
     bot.set_webhook(url=webhook_url)
     print(f"🚀 Роутер Вебхука успешно зарегистрирован на URL: {webhook_url}")
 
+# Функция для перевода в латиницу (чтобы сервер никогда не падал из-за русских букв)
+def to_translit(text: str) -> str:
+    rus = 'абвгдеёжзийклмнопрстуфхцчшщъыьэюяАБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ'
+    eng = ['a','b','v','g','d','e','yo','zh','z','i','j','k','l','m','n','o','p','r','s','t','u','f','h','ts','ch','sh','shch','','y','','e','yu','ya',
+           'A','B','V','G','D','E','Yo','Zh','Z','I','J','K','L','M','N','O','P','R','S','T','U','F','H','Ts','Ch','Sh','Shch','','Y','','E','Yu','Ya']
+    translit_dict = dict(zip(rus, eng))
+    return ''.join([translit_dict.get(char, char) for char in text])
+
 # =====================================================================
 # Эндпоинт для генерации PDF (POST)
 # =====================================================================
@@ -1256,41 +1264,34 @@ async def generate_pdf(request: Request):
         
         if not os.path.exists(font_path):
             try:
-                # Используем альтернативную прямую ссылку
-                font_url = "https://www.freedesignclub.com/wp-content/uploads/2019/08/DejaVuSans.ttf"
-                urllib.request.urlretrieve(font_url, font_path)
-                font_loaded = True
-            except Exception as e:
-                print(f"Не удалось скачать шрифт: {e}")
-        
+                urllib.request.urlretrieve("https://github.com/matomo-org/travis-scripts/raw/master/fonts/DejaVuSans.ttf", font_path)
+            except:
+                pass
+                
         if os.path.exists(font_path):
             font_loaded = True
-            
+
         pdf = FPDF()
         pdf.add_page()
         
-        if font_loaded and os.path.exists(font_path):
-            pdf.add_font("DejaVu", "", font_path)
-            pdf.set_font("DejaVu", size=16)
-        else:
-            pdf.set_font("Helvetica", size=16)
-        
-        # Рисуем заголовок
-        pdf.cell(0, 10, "Юридический отчет RuleGuard", align="C", new_x="LMARGIN", new_y="NEXT")
-        pdf.ln(5)
-        
-        # Мягко удаляем эмодзи
+        # Чистим эмодзи
         clean_text = report_text
         for emoji in ["🔥", "🛡️", "📊", "🔎", "⚠️", "🛠️", "📋", "🗣️", "⚙️", "🚀", "🔄", "📭", "⏳", "📥", "❌", "💬", "🤖"]:
             clean_text = clean_text.replace(emoji, "")
             
-        if font_loaded and os.path.exists(font_path):
+        if font_loaded:
+            pdf.add_font("DejaVu", "", font_path)
+            pdf.set_font("DejaVu", size=14)
+            pdf.cell(0, 10, "Yuridicheskiy otchet RuleGuard", align="C", new_x="LMARGIN", new_y="NEXT")
+            pdf.ln(5)
             pdf.set_font("DejaVu", size=11)
             pdf.multi_cell(0, 6, clean_text)
         else:
-            safe_text = clean_text.encode('latin-1', 'ignore').decode('latin-1')
+            pdf.set_font("Helvetica", size=12)
+            pdf.cell(0, 10, "Yuridicheskiy otchet RuleGuard", align="C", new_x="LMARGIN", new_y="NEXT")
+            pdf.ln(5)
             pdf.set_font("Helvetica", size=10)
-            pdf.multi_cell(0, 6, safe_text)
+            pdf.multi_cell(0, 6, to_translit(clean_text))
         
         pdf_buffer = pdf.output()
         
@@ -1315,39 +1316,33 @@ async def download_pdf_get(text: str = "Отчет пуст"):
         
         if not os.path.exists(font_path):
             try:
-                # Используем альтернативную прямую ссылку
-                font_url = "https://www.freedesignclub.com/wp-content/uploads/2019/08/DejaVuSans.ttf"
-                urllib.request.urlretrieve(font_url, font_path)
-                font_loaded = True
-            except Exception as e:
-                print(f"Не удалось скачать шрифт: {e}")
-        
+                urllib.request.urlretrieve("https://github.com/matomo-org/travis-scripts/raw/master/fonts/DejaVuSans.ttf", font_path)
+            except:
+                pass
+                
         if os.path.exists(font_path):
             font_loaded = True
 
         pdf = FPDF()
         pdf.add_page()
         
-        if font_loaded and os.path.exists(font_path):
-            pdf.add_font("DejaVu", "", font_path)
-            pdf.set_font("DejaVu", size=14)
-        else:
-            pdf.set_font("Helvetica", size=12)
-            
-        pdf.cell(0, 10, "Юридический отчет RuleGuard", align="C", new_x="LMARGIN", new_y="NEXT")
-        pdf.ln(5)
-        
         clean_text = text
         for emoji in ["🔥", "🛡️", "📊", "🔎", "⚠️", "🛠️", "📋", "🗣️", "⚙️", "🚀", "🔄", "📭", "⏳", "📥", "❌", "💬", "🤖"]:
             clean_text = clean_text.replace(emoji, "")
             
-        if font_loaded and os.path.exists(font_path):
+        if font_loaded:
+            pdf.add_font("DejaVu", "", font_path)
+            pdf.set_font("DejaVu", size=14)
+            pdf.cell(0, 10, "Yuridicheskiy otchet RuleGuard", align="C", new_x="LMARGIN", new_y="NEXT")
+            pdf.ln(5)
             pdf.set_font("DejaVu", size=11)
             pdf.multi_cell(0, 6, clean_text)
         else:
-            safe_text = clean_text.encode('latin-1', 'ignore').decode('latin-1')
+            pdf.set_font("Helvetica", size=12)
+            pdf.cell(0, 10, "Yuridicheskiy otchet RuleGuard", align="C", new_x="LMARGIN", new_y="NEXT")
+            pdf.ln(5)
             pdf.set_font("Helvetica", size=10)
-            pdf.multi_cell(0, 6, safe_text)
+            pdf.multi_cell(0, 6, to_translit(clean_text))
             
         pdf_buffer = pdf.output()
         
