@@ -1187,21 +1187,9 @@ function renderArchive(historyArray) {
                     const blob = await response.blob();
                     const url = window.URL.createObjectURL(blob);
                     
-                    // Проверяем, открыты ли мы внутри Telegram WebApp
-                    if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.openLink) {
-                        // Если да, создаем временную ссылку и открываем её через системный механизм
-                        window.open(url, '_blank');
-                    } else {
-                        // Обычный способ для ПК/браузера
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = 'RuleGuard_Audit.pdf';
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                    }
-                    
-                    window.URL.revokeObjectURL(url);
+                    // Вместо блокируемого скачивания передаем браузеру открыть файл 
+                    // Это заставит Telegram Mini App перенаправить на просмотр или системное скачивание PDF
+                    window.location.href = url;
                 } else {
                     alert('Ошибка сервера при генерации документа.');
                 }
