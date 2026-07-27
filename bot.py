@@ -1293,7 +1293,7 @@ async def generate_pdf(request: Request):
             pdf.set_font("Helvetica", size=10)
             pdf.multi_cell(0, 6, to_translit(clean_text))
         
-        pdf_buffer = pdf.output()
+        pdf_buffer = bytes(pdf.output())
         
         return Response(
             content=pdf_buffer, 
@@ -1344,7 +1344,7 @@ async def download_pdf_get(text: str = "Отчет пуст"):
             pdf.set_font("Helvetica", size=10)
             pdf.multi_cell(0, 6, to_translit(clean_text))
             
-        pdf_buffer = pdf.output()
+        pdf_buffer = bytes(pdf.output())
         
         return Response(
             content=pdf_buffer, 
