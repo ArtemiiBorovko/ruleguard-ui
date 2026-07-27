@@ -1171,27 +1171,44 @@ function renderArchive(historyArray) {
         updateBusinessForms();
         loadTheme();
         loadDataFromServer();
-        function downloadPdf(btnElement, reportText) {
+        async function downloadPdf(btnElement, reportText) {
             const originalHTML = btnElement.innerHTML;
-            btnElement.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Ссылка...';
+            btnElement.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Создаем PDF...';
             btnElement.disabled = true;
 
-            // Кодируем текст отчета, чтобы передать его в GET-параметре через URL
-            const encodedText = encodeURIComponent(reportText);
-            const downloadUrl = `${BACKEND_URL}/api/download-pdf?user_id=${userTelegramId}&text=${encodedText}`;
-
-            // Используем официальный метод Telegram WebApp для открытия ссылки во внешнем браузере устройства
-            if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.openLink) {
-                window.Telegram.WebApp.openLink(downloadUrl);
-            } else {
-                window.open(downloadUrl, '_blank');
-            }
-
-            // Возвращаем кнопку в исходное состояние через секунду
-            setTimeout(() => {
+            try {
+                // 1. Отправляем текст отчета на твой бэкенд на Render
+                const response = await fetch(`${BACKEND_URL}/api/generate-pdf`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: reportText })
+                });
+                
+                if (response.ok) {
+                    // 2. Получаем готовый PDF в виде бинарных данных (blob)
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    
+                    // 3. Создаем временную ссылку для скачивания внутри Telegram-клиента
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'RuleGuard_Report.pdf';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    
+                    // Очищаем память
+                    setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+                } else {
+                    alert('Не удалось сформировать PDF на сервере.');
+                }
+            } catch (e) {
+                console.error('Ошибка скачивания:', e);
+                alert('Ошибка сети при скачивании PDF.');
+            } finally {
                 btnElement.innerHTML = originalHTML;
                 btnElement.disabled = false;
-            }, 1000);
+            }
         }
     </script>
 </body>
