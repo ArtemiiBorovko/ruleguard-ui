@@ -9,9 +9,10 @@ from datetime import datetime
 from apscheduler.schedulers.background import BackgroundScheduler
 import pypdf
 import docx2txt
-import os
 import urllib.request
+import urllib.parse  # Импортируем один раз здесь
 from fastapi import FastAPI, Request, Response
+from fastapi.responses import Response as FastAPIResponse  # Если нужно явно развести, но обычно хватает стандартного Response из fastapi
 from fpdf import FPDF
 
 # ... дальше идет остальной твой код ...
@@ -1264,7 +1265,7 @@ async def generate_pdf(request: Request):
         pdf.cell(0, 10, "Юридический отчет RuleGuard", align="C", new_x="LMARGIN", new_y="NEXT")
         pdf.ln(5)
         
-        # Рисуем основной текст
+        # Рисуем основной текст 
         pdf.set_font("DejaVu", size=11)
         
         # Мягко удаляем эмодзи, так как строгие форматы PDF могут на них "споткнуться"
@@ -1288,32 +1289,51 @@ async def generate_pdf(request: Request):
     
 
 # =====================================================================
-# ДОБАВЛЕНО: Эндпоинт для скачивания PDF через GET (для Telegram openLink)
+# ИСПРАВЛЕНО: Эндпоинт для скачивания PDF через GET (для Telegram openLink)
 # =====================================================================
 @app.get("/api/download-pdf")
 async def download_pdf_get(text: str = "Отчет пуст"):
     try:
         font_path = "DejaVuSans.ttf"
+        font_loaded = True
+        
+        # Проверяем наличие шрифта, если нет — пытаемся скачать по рабочей ссылке
         if not os.path.exists(font_path):
-            # Исправленная рабочая ссылка на зеркало шрифта
-            font_url = "https://raw.githubusercontent.com/dejavu-fonts/dejavu-fonts-ttf/master/ttf/DejaVuSans.ttf"
-            urllib.request.urlretrieve(font_url, font_path)
-            
+            try:
+                font_url = "https://github.com/matomo-org/travis-scripts/raw/master/fonts/DejaVuSans.ttf"
+                urllib.request.urlretrieve(font_url, font_path)
+            except Exception as font_err:
+                print(f"⚠️ Не удалось скачать шрифт DejaVu: {font_err}")
+                font_loaded = False
+
         pdf = FPDF()
         pdf.add_page()
-        pdf.add_font("DejaVu", "", font_path)
         
-        pdf.set_font("DejaVu", size=16)
+        # Если шрифт успешно скачался — используем его (поддерживает кириллицу)
+        if font_loaded and os.path.exists(font_path):
+            pdf.add_font("DejaVu", "", font_path)
+            pdf.set_font("DejaVu", size=14)
+        else:
+            # Запасной вариант, если скачать шрифт не удалось
+            pdf.set_font("Arial", size=12)
+            
         pdf.cell(0, 10, "Юридический отчет RuleGuard", align="C", new_x="LMARGIN", new_y="NEXT")
         pdf.ln(5)
         
-        pdf.set_font("DejaVu", size=11)
-        
+        # Чистим эмодзи
         clean_text = text
         for emoji in ["🔥", "🛡️", "📊", "🔎", "⚠️", "🛠️", "📋", "🗣️", "⚙️", "🚀", "🔄", "📭", "⏳", "📥", "❌", "💬", "🤖"]:
             clean_text = clean_text.replace(emoji, "")
             
-        pdf.multi_cell(0, 6, clean_text)
+        if font_loaded and os.path.exists(font_path):
+            pdf.set_font("DejaVu", size=11)
+            pdf.multi_cell(0, 6, clean_text)
+        else:
+            # Если шрифта нет, конвертируем в latin-1, чтобы FPDF не вылетал с фатальной ошибкой
+            safe_text = clean_text.encode('latin-1', 'ignore').decode('latin-1')
+            pdf.set_font("Arial", size=10)
+            pdf.multi_cell(0, 6, safe_text)
+            
         pdf_buffer = pdf.output()
         
         return Response(
