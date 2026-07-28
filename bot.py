@@ -1259,46 +1259,37 @@ async def generate_pdf(request: Request):
         data = await request.json()
         report_text = data.get("text", "Отчет пуст")
         
-        font_path = "DejaVuSans.ttf"
-        font_loaded = False
-        
-        if not os.path.exists(font_path):
-            try:
-                urllib.request.urlretrieve("https://github.com/matomo-org/travis-scripts/raw/master/fonts/DejaVuSans.ttf", font_path)
-            except:
-                pass
-                
-        if os.path.exists(font_path):
-            font_loaded = True
-
         pdf = FPDF()
         pdf.add_page()
         
-        # Чистим эмодзи
-        clean_text = report_text
+        # Подключаем Roboto, который лежит в репозитории
+        pdf.add_font("Roboto", "", "Roboto-Regular.ttf")
+        
+        # Очищаем текст от лишних хэштегов (###) и эмодзи
+        clean_text = report_text.replace("###", "")
         for emoji in ["🔥", "🛡️", "📊", "🔎", "⚠️", "🛠️", "📋", "🗣️", "⚙️", "🚀", "🔄", "📭", "⏳", "📥", "❌", "💬", "🤖"]:
             clean_text = clean_text.replace(emoji, "")
             
-        if font_loaded:
-            pdf.add_font("DejaVu", "", font_path)
-            pdf.set_font("DejaVu", size=14)
-            pdf.cell(0, 10, "Yuridicheskiy otchet RuleGuard", align="C", new_x="LMARGIN", new_y="NEXT")
-            pdf.ln(5)
-            pdf.set_font("DejaVu", size=11)
-            pdf.multi_cell(0, 6, clean_text)
-        else:
-            pdf.set_font("Helvetica", size=12)
-            pdf.cell(0, 10, "Yuridicheskiy otchet RuleGuard", align="C", new_x="LMARGIN", new_y="NEXT")
-            pdf.ln(5)
-            pdf.set_font("Helvetica", size=10)
-            pdf.multi_cell(0, 6, to_translit(clean_text))
+        # Заголовок документа
+        pdf.set_font("Roboto", size=16)
+        pdf.cell(0, 10, "Юридический отчёт RuleGuard", align="C", new_x="LMARGIN", new_y="NEXT")
+        
+        # Подзаголовок / Название темы
+        pdf.ln(2)
+        pdf.set_font("Roboto", size=12)
+        pdf.cell(0, 8, "Проект: Houston Stroyka Patio", align="C", new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(6)
+        
+        # Основной текст отчета
+        pdf.set_font("Roboto", size=10)
+        pdf.multi_cell(0, 6, clean_text)
         
         pdf_buffer = bytes(pdf.output())
         
         return Response(
             content=pdf_buffer, 
             media_type="application/pdf", 
-            headers={"Content-Disposition": "attachment; filename=RuleGuard_Report.pdf"}
+            headers={"Content-Disposition": "attachment; filename=Houston_Stroyka_Patio_Report.pdf"}
         )
     except Exception as e:
         print(f"Ошибка при генерации PDF: {e}")
@@ -1311,45 +1302,37 @@ async def generate_pdf(request: Request):
 @app.get("/api/download-pdf")
 async def download_pdf_get(text: str = "Отчет пуст"):
     try:
-        font_path = "DejaVuSans.ttf"
-        font_loaded = False
-        
-        if not os.path.exists(font_path):
-            try:
-                urllib.request.urlretrieve("https://github.com/matomo-org/travis-scripts/raw/master/fonts/DejaVuSans.ttf", font_path)
-            except:
-                pass
-                
-        if os.path.exists(font_path):
-            font_loaded = True
-
         pdf = FPDF()
         pdf.add_page()
         
-        clean_text = text
+        # Подключаем Roboto, который лежит в репозитории
+        pdf.add_font("Roboto", "", "Roboto-Regular.ttf")
+        
+        # Очищаем текст от лишних хэштегов и эмодзи
+        clean_text = text.replace("###", "")
         for emoji in ["🔥", "🛡️", "📊", "🔎", "⚠️", "🛠️", "📋", "🗣️", "⚙️", "🚀", "🔄", "📭", "⏳", "📥", "❌", "💬", "🤖"]:
             clean_text = clean_text.replace(emoji, "")
             
-        if font_loaded:
-            pdf.add_font("DejaVu", "", font_path)
-            pdf.set_font("DejaVu", size=14)
-            pdf.cell(0, 10, "Yuridicheskiy otchet RuleGuard", align="C", new_x="LMARGIN", new_y="NEXT")
-            pdf.ln(5)
-            pdf.set_font("DejaVu", size=11)
-            pdf.multi_cell(0, 6, clean_text)
-        else:
-            pdf.set_font("Helvetica", size=12)
-            pdf.cell(0, 10, "Yuridicheskiy otchet RuleGuard", align="C", new_x="LMARGIN", new_y="NEXT")
-            pdf.ln(5)
-            pdf.set_font("Helvetica", size=10)
-            pdf.multi_cell(0, 6, to_translit(clean_text))
+        # Заголовок документа
+        pdf.set_font("Roboto", size=16)
+        pdf.cell(0, 10, "Юридический отчёт RuleGuard", align="C", new_x="LMARGIN", new_y="NEXT")
+        
+        # Подзаголовок
+        pdf.ln(2)
+        pdf.set_font("Roboto", size=12)
+        pdf.cell(0, 8, "Проект: Houston Stroyka Patio", align="C", new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(6)
+        
+        # Основной текст
+        pdf.set_font("Roboto", size=10)
+        pdf.multi_cell(0, 6, clean_text)
             
         pdf_buffer = bytes(pdf.output())
         
         return Response(
             content=pdf_buffer, 
             media_type="application/pdf", 
-            headers={"Content-Disposition": "attachment; filename=RuleGuard_Report.pdf"}
+            headers={"Content-Disposition": "attachment; filename=Houston_Stroyka_Patio_Report.pdf"}
         )
     except Exception as e:
         print(f"Ошибка при генерации PDF (GET): {e}")
