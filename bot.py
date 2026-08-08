@@ -45,6 +45,16 @@ groq_client = Groq(api_key=GROQ_API_KEY)
 engine = create_engine(DATABASE_URL)
 app = FastAPI()
 
+# --- ВСТАВИТЬ СРАЗУ ПОСЛЕ НЕЕ ЭТОТ БЛОК (Блокировка подозрительных IP): ---
+@app.middleware("http")
+async def block_blacklisted_ips(request: Request, call_next):
+    client_ip = request.client.host
+    if client_ip == "84.32.49.100":
+        return Response(content="Access denied", status_code=403)
+    response = await call_next(request)
+    return response
+# -------------------------------------------------------------------
+
 security = HTTPBasic()
 
 def get_current_admin(credentials: HTTPBasicCredentials = Depends(security)):
@@ -798,7 +808,8 @@ async def reanalyze(user_id: int):
 
 # API для сбора статистики из базы
 @app.get("/api/admin/stats")
-def get_admin_stats(admin: str = Depends(get_current_admin)):
+def get_admin_stats(credentials: HTTPBasicCredentials = Depends(security)):
+    get_current_admin(credentials) # Гарантирует проверку пароля перед отдачей базы
     try:
         with engine.connect() as conn:
             total_users = conn.execute(text("SELECT COUNT(*) FROM users")).scalar()
@@ -1057,10 +1068,18 @@ def send_daily_push_notifications():
                 ]
                 bot_response = safe_groq_request(messages, temperature=0.4)
                 
+                 # --- ЗАМЕНИТЬ БЛОК ОТПРАВКИ НА ЭТОТ ---
                 try:
                     bot.send_message(user_id, f"🛡️ <b>Ежедневный RuleGuard Радар</b>\n\n{bot_response}", parse_mode="HTML")
-                except Exception:
-                    bot.send_message(user_id, f"🛡️ Ежедневный RuleGuard Радар\n\n{bot_response}")
+                except Exception as e:
+                    err_str = str(e).lower()
+                    if "blocked by the user" in err_str or "403" in err_str or "user is deactivated" in err_str:
+                        print(f"Пользователь {user_id} заблокировал бота. Пропускаем.")
+                    else:
+                        print(f"Ошибка при отправке {user_id}: {e}")
+                    # Переходим к следующему пользователю в цикле, не останавливая планировщик
+                    continue
+                # -------------------------------------
                 
                 try:
                     with engine.begin() as update_conn:
