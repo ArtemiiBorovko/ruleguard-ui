@@ -353,12 +353,14 @@ def parse_and_apply_ai_intent(user_id, text_input):
             [{"role": "system", "content": system_prompt}, {"role": "user", "content": text_input}],
             temperature=0.0, max_tokens=200, is_dispatcher=True
         )
-        cleaned = response.strip()
-        if cleaned.startswith("```json"):
-            cleaned = cleaned[7:]
-        if cleaned.endswith("```"):
-            cleaned = cleaned[:-3]
-        data = json.loads(cleaned.strip())
+        
+        # Ищем всё, что находится между { и } включительно
+        match = re.search(r'\{.*\}', response.strip(), re.DOTALL)
+        if not match:
+            raise ValueError("JSON не найден в ответе нейросети")
+            
+        cleaned = match.group(0)
+        data = json.loads(cleaned)
         
         action = data.get("action", "none")
         if action == "settings_updated":
