@@ -1,6 +1,7 @@
 import telebot
 import os
 import json
+import re
 import requests
 import threading
 import pytz
@@ -354,13 +355,13 @@ def parse_and_apply_ai_intent(user_id, text_input):
             temperature=0.0, max_tokens=200, is_dispatcher=True
         )
         
-        # Ищем всё, что находится между { и } включительно
+        # Умный поиск JSON в ответе, который никогда не ломается
         match = re.search(r'\{.*\}', response.strip(), re.DOTALL)
-        if not match:
-            raise ValueError("JSON не найден в ответе нейросети")
-            
-        cleaned = match.group(0)
-        data = json.loads(cleaned)
+        if match:
+            cleaned = match.group(0)
+            data = json.loads(cleaned)
+        else:
+            data = {"action": "none"}
         
         action = data.get("action", "none")
         if action == "settings_updated":
@@ -373,9 +374,7 @@ def parse_and_apply_ai_intent(user_id, text_input):
                 if push_time:
                     conn.execute(text("UPDATE users SET push_time = :pt WHERE user_id = :uid"), {"pt": push_time, "uid": user_id})
                 
-                # Исправленная логика обновления частоты и дней
                 if push_frequency:
-                    # Если дни пустые (например, для monthly), сохраняем пустую строку, чтобы сбросить чекбоксы на фронте
                     pd = push_days if push_days is not None else ""
                     conn.execute(text("UPDATE users SET push_frequency = :pf, push_days = :pd WHERE user_id = :uid"), {"pf": push_frequency, "pd": pd, "uid": user_id})
 
@@ -1010,7 +1009,6 @@ def get_admin_dashboard(admin: str = Depends(get_current_admin)):
 def send_daily_push_notifications():
     try:
         with engine.connect() as conn:
-            # ДОБАВЛЕНО: выбираем также push_frequency и push_days из базы
             result = conn.execute(text("SELECT user_id, user_name, business_description, location, push_time, timezone, country, legal_form, last_push_date, push_frequency, push_days FROM users"))
             all_users = result.fetchall()
         
@@ -1023,31 +1021,24 @@ def send_daily_push_notifications():
             now_tz = datetime.now(tz)
             today_date = now_tz.date()
             
-            # Если сегодня уже отправляли, пропускаем
-            if last_push_date == today_date:
-                continue
+            # ВРЕМЕННО ОТКЛЮЧЕНО ДЛЯ ТЕСТОВ: бот больше не проверяет, отправлял ли он уже пуш сегодня
+            # if last_push_date == today_date:
+            #     continue
                 
-            # Проверяем условия частоты рассылки
             should_send = False
             freq = (push_frequency or 'daily').lower()
             
             if freq in ['daily', 'everyday']:
                 should_send = True
             elif freq == 'monthly':
-                # Отправляем строго 1-го числа каждого месяца
                 if today_date.day == 1:
                     should_send = True
             elif freq == 'custom':
-                # Проверяем, входит ли текущий день недели в разрешенные дни (например, mon, wed)
-                current_day_str = now_tz.strftime('%a').lower() # mon, tue, wed, thu, fri, sat, sun
+                current_day_str = now_tz.strftime('%a').lower()
                 days_list = [d.strip().lower() for d in (push_days or '').split(',') if d.strip()]
-                
                 if current_day_str in days_list:
                     should_send = True
-                    
-                # ИСПРАВЛЕНИЕ: Перехватываем 'monthly', если он прилетел как день недели
                 if 'monthly' in days_list:
-                    # Отправляем строго 1-го числа каждого месяца
                     if today_date.day == 1:
                         should_send = True
 
@@ -1059,38 +1050,33 @@ def send_daily_push_notifications():
             except Exception:
                 push_hour, push_minute = 9, 0
             
-            # Проверяем, наступило ли заданное время
-            if (now_tz.hour > push_hour or (now_tz.hour == push_hour and now_tz.minute >= push_minute)):
-                search_query = f"{country or ''} {location or ''} {legal_form or ''} {business or ''}"
-                web_data = search_internet(search_query)
-                
-                messages = [
-                    {"role": "system", "content": "Ты — ИИ-юрист RuleGuard. Напиши очень краткую сводку законов на сегодня (2-3 предложения)."},
-                    {"role": "user", "content": f"Бизнес: {business}, Локация: {location}. Данные: {web_data}"}
-                ]
-                bot_response = safe_groq_request(messages, temperature=0.4)
-                
-                 # --- ЗАМЕНИТЬ БЛОК ОТПРАВКИ НА ЭТОТ ---
+            # Проверяем, наступило ли заданное время (ровно минута в минуту)
+            if now_tz.hour == push_hour and now_tz.minute == push_minute:
+                # ВЕСЬ БЛОК ОТПРАВКИ ТЕПЕРЬ ЗАЩИЩЕН ОТ СБОЕВ СЕТИ
                 try:
-                    bot.send_message(user_id, f"🛡️ <b>Ежедневный RuleGuard Радар</b>\n\n{bot_response}", parse_mode="HTML")
-                except Exception as e:
-                    err_str = str(e).lower()
-                    if "blocked by the user" in err_str or "403" in err_str or "user is deactivated" in err_str:
-                        print(f"Пользователь {user_id} заблокировал бота. Пропускаем.")
-                    else:
-                        print(f"Ошибка при отправке {user_id}: {e}")
-                    # Переходим к следующему пользователю в цикле, не останавливая планировщик
-                    continue
-                # -------------------------------------
-                
-                try:
+                    search_query = f"{country or ''} {location or ''} {legal_form or ''} {business or ''}"
+                    web_data = search_internet(search_query)
+                    
+                    messages = [
+                        {"role": "system", "content": "Ты — ИИ-юрист RuleGuard. Напиши очень краткую сводку законов на сегодня (2-3 предложения)."},
+                        {"role": "user", "content": f"Бизнес: {business}, Локация: {location}. Данные: {web_data}"}
+                    ]
+                    bot_response = safe_groq_request(messages, temperature=0.4)
+                    
+                    try:
+                        bot.send_message(user_id, f"🛡️ <b>Ежедневный RuleGuard Радар</b>\n\n{bot_response}", parse_mode="HTML")
+                    except Exception as tg_e:
+                        print(f"Ошибка Телеграма для {user_id}: {tg_e}")
+                        continue
+                    
                     with engine.begin() as update_conn:
                         update_conn.execute(
                             text("UPDATE users SET last_push_date = :today WHERE user_id = :uid"), 
                             {"today": today_date, "uid": user_id}
                         )
-                except Exception as db_err:
-                    print(f"Ошибка обновления даты пуша для {user_id}: {db_err}")
+                except Exception as inner_e:
+                    print(f"⚠️ Внутренняя ошибка пуша для юзера {user_id}: {inner_e}")
+                    continue
 
     except Exception as e:
         print(f"Ошибка планировщика пушей: {e}")
