@@ -699,7 +699,8 @@
                             'fri': 'fri', 'пятница': 'fri', 'пт': 'fri',
                             'sat': 'sat', 'суббота': 'sat', 'сб': 'sat',
                             'sun': 'sun', 'воскресенье': 'sun', 'вс': 'sun',
-                            'monthly': 'monthly', 'раз в месяц': 'monthly', 'ежемесячно': 'monthly'
+                            'monthly': 'monthly', 'раз в месяц': 'monthly', 'ежемесячно': 'monthly',
+                            '1': 'monthly'
                         };
 
                         const normalizedDays = daysArray.map(d => dayMap[String(d).toLowerCase().trim()] || String(d).toLowerCase().trim());
