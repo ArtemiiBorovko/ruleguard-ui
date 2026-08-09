@@ -1,34 +1,33 @@
-import telebot
+# Стандартные библиотеки Python
 import os
 import json
 import re
-import requests
 import threading
-import pytz
-from groq import Groq
+import urllib.request
+import urllib.parse
+import secrets
 from datetime import datetime
-from apscheduler.schedulers.background import BackgroundScheduler
+
+# Сторонние библиотеки и инструменты
+import telebot
+import requests
+import pytz
 import pypdf
 import docx2txt
-import urllib.request
-import urllib.parse  # Импортируем один раз здесь
-from fastapi import FastAPI, Request, Response
-from fastapi.responses import Response as FastAPIResponse  # Если нужно явно развести, но обычно хватает стандартного Response из fastapi
+from groq import Groq
 from fpdf import FPDF
+from apscheduler.schedulers.background import BackgroundScheduler
 
-# ... дальше идет остальной твой код ...
-
-from fastapi.responses import HTMLResponse
-from fastapi.security import HTTPBasic, HTTPBasicCredentials
-from fastapi import Depends, HTTPException, status
-import secrets
-
-# Работа с PostgreSQL
+# Работа с базой данных (PostgreSQL)
 from sqlalchemy import create_engine, text
 
-# Веб-сервер и работа с файлами
-from fastapi import FastAPI, Request, UploadFile, File
+# Веб-сервер FastAPI (все сгруппировано здесь, без дублей)
+from fastapi import FastAPI, Request, Response, UploadFile, File, Depends, HTTPException, status
+from fastapi.responses import HTMLResponse, Response as FastAPIResponse 
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.middleware.cors import CORSMiddleware
+
+# ... дальше идет остальной твой код (подключение к БД, функции и т.д.) ...
 
 # 1. ТОКЕНЫ И НАСТРОЙКА (Безопасное чтение из переменных окружения)
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -80,7 +79,7 @@ def init_db():
                 business_description TEXT, 
                 push_time TEXT DEFAULT '09:00',
                 push_frequency TEXT DEFAULT 'daily',
-                push_days TEXT DEFAULT 'everyday', -- <--- ДОБАВЬ ЭТУ СТРОЧКУ
+                push_days TEXT DEFAULT 'everyday',
                 country TEXT,
                 location TEXT,
                 legal_form TEXT,
@@ -92,6 +91,7 @@ def init_db():
                 main_risk_zones TEXT,
                 timezone TEXT DEFAULT 'UTC',
                 last_push_date DATE,
+                is_approved BOOLEAN DEFAULT FALSE,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         '''))
@@ -132,6 +132,7 @@ def init_db():
             conn.execute(text("ALTER TABLE users ADD COLUMN online_sales BOOLEAN;"))
             conn.execute(text("ALTER TABLE users ADD COLUMN annual_turnover_bracket TEXT;"))
             conn.execute(text("ALTER TABLE users ADD COLUMN main_risk_zones TEXT;"))
+            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_approved BOOLEAN DEFAULT FALSE;"))
     except Exception:
         pass
 
@@ -276,6 +277,14 @@ def get_recent_chat_history(user_id, limit=6):
     except Exception as e:
         print(f"Ошибка получения истории чата: {e}")
         return []
+
+def is_user_approved(user_id):
+    with engine.connect() as conn:
+        res = conn.execute(text("SELECT is_approved FROM users WHERE user_id = :uid"), {"uid": user_id})
+        row = res.fetchone()
+        if row and row[0]:
+            return True
+        return False
 
 # 3. УМНЫЙ РОУТЕР GROQ И ИНТЕЛЛЕКТУАЛЬНЫЙ ПАРСЕР КОМАНД СПРИНТА 3
 def safe_groq_request(messages, temperature=0.3, max_tokens=None, is_dispatcher=False):
@@ -826,10 +835,12 @@ def get_admin_stats(credentials: HTTPBasicCredentials = Depends(security)):
             chat_count = conn.execute(text("SELECT COUNT(*) FROM chat_history WHERE role = 'user'")).scalar()
             groq_requests = {"labels": ["Анализ бизнеса", "Диалоги в чате"], "data": [reports_count, chat_count]}
 
+            # Внутри get_admin_stats замени users_query и цикл for row in users_res:
             users_query = text("""
                 SELECT u.user_id, u.user_name, u.country, u.location, u.legal_form, u.business_description, u.push_time, u.timezone,
                        (SELECT COUNT(*) FROM reports r WHERE r.user_id = u.user_id) as reports_count,
-                       (SELECT COUNT(*) FROM chat_history c WHERE c.user_id = u.user_id AND c.role = 'user') as chat_count
+                       (SELECT COUNT(*) FROM chat_history c WHERE c.user_id = u.user_id AND c.role = 'user') as chat_count,
+                       u.is_approved -- ДОБАВЛЯЕМ СТАТУС В ВЫГРУЗКУ
                 FROM users u
             """)
             users_res = conn.execute(users_query).fetchall()
@@ -845,7 +856,8 @@ def get_admin_stats(credentials: HTTPBasicCredentials = Depends(security)):
                     "push_time": row[6] or "-",
                     "timezone": row[7] or "-",
                     "reports_count": row[8],
-                    "chat_count": row[9]
+                    "chat_count": row[9],
+                    "is_approved": row[10] # ЗАБИРАЕМ СТАТУС
                 })
 
         return {
@@ -858,6 +870,25 @@ def get_admin_stats(credentials: HTTPBasicCredentials = Depends(security)):
         }
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+@app.post("/api/admin/approve/{user_id}")
+def approve_user(user_id: int, credentials: HTTPBasicCredentials = Depends(security)):
+    get_current_admin(credentials) # Защита: только админ может одобрять
+    
+    with engine.begin() as conn:
+        conn.execute(text("UPDATE users SET is_approved = TRUE WHERE user_id = :uid"), {"uid": user_id})
+        
+    # Сразу отправляем радостное сообщение клиенту!
+    try:
+        markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+        web_app_info = telebot.types.WebAppInfo("https://artemiiborovko.github.io/ruleguard-ui/")
+        markup.add(telebot.types.KeyboardButton(text="🚀 Открыть анкету RuleGuard", web_app=web_app_info))
+        markup.add(telebot.types.KeyboardButton(text="🔄 Повторить последний анализ"))
+        bot.send_message(user_id, "🎉 **Доступ открыт!**\n\nВаша заявка одобрена. Теперь вы можете использовать интерфейс и общаться со мной.", parse_mode="Markdown", reply_markup=markup)
+    except Exception as e:
+        print(f"Ошибка отправки подтверждения: {e}")
+        
+    return {"status": "success"}
 
 @app.get("/admin", response_class=HTMLResponse)
 def get_admin_dashboard(admin: str = Depends(get_current_admin)):
@@ -898,6 +929,16 @@ def get_admin_dashboard(admin: str = Depends(get_current_admin)):
                 <p style="margin: 0; color: #8E8E93; font-size: 13px;">Панель мониторинга и аналитики аудитории</p>
             </div>
         </div>
+        
+        <thead>
+            <tr>
+                <th>ID / Имя</th>
+                <th>Локация</th>
+                <th>Бизнес (Форма / Описание)</th>
+                <th>Анализ/Чаты</th>
+                <th>Доступ</th> <!-- НОВАЯ КОЛОНКА -->
+            </tr>
+        </thead>
         
         <div class="stat-box">
             <h3>Всего пользователей в системе</h3>
@@ -949,13 +990,18 @@ def get_admin_dashboard(admin: str = Depends(get_current_admin)):
                 if (data.users_details && data.users_details.length > 0) {
                     data.users_details.forEach(u => {
                         const tr = document.createElement('tr');
+                        
+                        // Логика кнопки
+                        const accessHtml = u.is_approved 
+                            ? `<span style="color: #34C759; font-weight:bold;">Одобрен</span>`
+                            : `<button onclick="approveUser(${u.user_id})" style="background:#34C759; border:none; padding:6px 12px; border-radius:5px; cursor:pointer; color:#000; font-weight:bold;">Одобрить</button>`;
+                            
                         tr.innerHTML = `
                             <td><b>${u.user_name}</b><br><span style="color: #8E8E93; font-size: 11px;">ID: ${u.user_id}</span></td>
                             <td>${u.country} / ${u.location}</td>
                             <td><b>${u.legal_form}</b><br><span style="color: #bbb; font-size: 12px;">${u.business_description}</span></td>
-                            <td>${u.push_time} <span style="color:#8E8E93; font-size:11px;">(${u.timezone})</span></td>
-                            <td><span class="badge-report">${u.reports_count}</span></td>
-                            <td><span class="badge-chat">${u.chat_count}</span></td>
+                            <td><span class="badge-report">${u.reports_count}</span> | <span class="badge-chat">${u.chat_count}</span></td>
+                            <td>${accessHtml}</td> <!-- ВСТАВЛЯЕМ КНОПКУ -->
                         `;
                         tableBody.appendChild(tr);
                     });
@@ -990,6 +1036,23 @@ def get_admin_dashboard(admin: str = Depends(get_current_admin)):
             }
             
             loadData();
+
+            async function approveUser(userId) {
+                if(!confirm("Открыть доступ этому пользователю?")) return;
+                
+                try {
+                    const response = await fetch(`/api/admin/approve/${userId}`, { method: 'POST' });
+                    if (response.ok) {
+                        alert("Доступ успешно открыт!");
+                        loadData(); // Перезагружаем таблицу, кнопка исчезнет
+                    } else {
+                        alert("Ошибка при открытии доступа.");
+                    }
+                } catch (e) {
+                    alert("Ошибка сети.");
+                }
+            }
+
         </script>
     </body>
     </html>
@@ -1084,17 +1147,26 @@ def smart_ping_render():
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
     save_user_data(message.from_user.id, username=message.from_user.first_name)
-    markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
-    web_app_info = telebot.types.WebAppInfo("https://artemiiborovko.github.io/ruleguard-ui/")
-    markup.add(telebot.types.KeyboardButton(text="🚀 Открыть анкету RuleGuard", web_app=web_app_info))
-    markup.add(telebot.types.KeyboardButton(text="🔄 Повторить последний анализ"))
     
-    safe_reply_to(message, f"🛡️ **Привет, {message.from_user.first_name}!** Бот полностью активен. Вы можете общаться со мной здесь или открыть полноценное приложение.")
+    if is_user_approved(message.from_user.id):
+        # Если уже одобрен, даем полное меню
+        markup = telebot.types.ReplyKeyboardMarkup(resize_keyboard=True)
+        web_app_info = telebot.types.WebAppInfo("https://artemiiborovko.github.io/ruleguard-ui/")
+        markup.add(telebot.types.KeyboardButton(text="🚀 Открыть анкету RuleGuard", web_app=web_app_info))
+        markup.add(telebot.types.KeyboardButton(text="🔄 Повторить последний анализ"))
+        safe_reply_to(message, f"🛡️ **С возвращением, {message.from_user.first_name}!** Бот полностью активен.", reply_markup=markup)
+    else:
+        # Если новенький, просим подождать
+        safe_reply_to(message, f"👋 Привет, {message.from_user.first_name}!\n\nВаша заявка принята. Доступ к RuleGuard выдается только после подтверждения администратором.\n\n⏳ Пожалуйста, ожидайте, мы пришлем уведомление.")
 
 @bot.message_handler(func=lambda message: True, content_types=['text'])
 def handle_text(message):
     user_id = message.from_user.id
     text_msg = message.text.strip()
+
+    # Вставь эти две строчки в САМОЕ НАЧАЛО handle_text, handle_voice и handle_document
+    if not is_user_approved(message.from_user.id):
+        return safe_reply_to(message, "⏳ Ваша заявка еще находится на рассмотрении.")
     
     if text_msg == "🔄 Повторить последний анализ":
         bot.send_chat_action(message.chat.id, 'typing')
@@ -1147,6 +1219,9 @@ def handle_text(message):
 
 @bot.message_handler(content_types=['voice'])
 def handle_voice(message):
+    # Вставь эти две строчки в САМОЕ НАЧАЛО handle_text, handle_voice и handle_document
+    if not is_user_approved(message.from_user.id):
+        return safe_reply_to(message, "⏳ Ваша заявка еще находится на рассмотрении.")
     try:
         bot.send_chat_action(message.chat.id, 'record_audio')
         file_info = bot.get_file(message.voice.file_id)
@@ -1169,6 +1244,9 @@ def handle_voice(message):
 
 @bot.message_handler(content_types=['document'])
 def handle_document(message):
+    # Вставь эти две строчки в САМОЕ НАЧАЛО handle_text, handle_voice и handle_document
+    if not is_user_approved(message.from_user.id):
+        return safe_reply_to(message, "⏳ Ваша заявка еще находится на рассмотрении.")
     try:
         file_info = bot.get_file(message.document.file_id)
         file_name = message.document.file_name.lower()
