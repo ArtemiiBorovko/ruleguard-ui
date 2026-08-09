@@ -571,7 +571,11 @@ async def handle_webapp_chat_message(request: Request):
         user_id = int(data.get('user_id'))
         text_msg = data.get('text', '').strip()
         if not text_msg: return {"status": "error", "message": "Empty text"}
-        
+
+        # ПРОВЕРКА ДОСТУПА: пока заявка не одобрена администратором, ИИ не отвечает
+        if not is_user_approved(user_id):
+            return {"status": "success", "reply": "⏳ Ваша заявка еще на рассмотрении администратора.", "report": "⏳ Ваша заявка еще на рассмотрении администратора."}
+
         # Спринт 3: Проверяем команды изменения настроек через чат
         intent_result = parse_and_apply_ai_intent(user_id, text_msg)
         
@@ -637,6 +641,11 @@ async def handle_web_analysis(request: Request):
         
         if not details and not location: return {"status": "success"}
 
+        # ПРОВЕРКА ДОСТУПА: анкету и данные сохраняем всегда (чтобы заявка появилась в админке),
+        # но сам ИИ-анализ запускаем только для уже одобренных пользователей.
+        if not is_user_approved(user_id):
+            return {"status": "success"}
+
         compiled_input = f"{country or ''} {location or ''} {legal_form or ''} {details or ''} Налог: {tax_system or ''}"
         report = generate_report_logic(user_id, compiled_input)
         
@@ -689,6 +698,10 @@ async def get_user_history(user_id: int, tz: str = "UTC"):
 @app.post("/api/webapp/analyze-doc")
 async def handle_webapp_doc(user_id: int, file: UploadFile = File(...)):
     try:
+        # ПРОВЕРКА ДОСТУПА
+        if not is_user_approved(user_id):
+            return {"status": "success", "report": "⏳ Ваша заявка еще на рассмотрении администратора."}
+
         file_name = file.filename.lower()
         if not (file_name.endswith('.pdf') or file_name.endswith('.docx')):
             return {"status": "error", "message": "Формат не поддерживается. Только PDF или DOCX."}
@@ -748,6 +761,10 @@ async def handle_webapp_doc(user_id: int, file: UploadFile = File(...)):
 async def handle_webapp_voice(user_id: int, file: UploadFile = File(...)):
     filename = f"webapp_voice_{user_id}.ogg"
     try:
+        # ПРОВЕРКА ДОСТУПА
+        if not is_user_approved(user_id):
+            return {"status": "success", "user_text": "", "reply": "⏳ Ваша заявка еще на рассмотрении администратора.", "report": "⏳ Ваша заявка еще на рассмотрении администратора."}
+
         content = await file.read()
         with open(filename, 'wb') as f:
             f.write(content)
@@ -792,6 +809,10 @@ async def handle_webapp_voice(user_id: int, file: UploadFile = File(...)):
 @app.post("/api/reanalyze/{user_id}")
 async def reanalyze(user_id: int):
     try:
+        # ПРОВЕРКА ДОСТУПА
+        if not is_user_approved(user_id):
+            return {"status": "error", "message": "Ваша заявка еще на рассмотрении администратора."}
+
         with engine.connect() as conn:
             result = conn.execute(text("""
                 SELECT country, location, legal_form, business_description
