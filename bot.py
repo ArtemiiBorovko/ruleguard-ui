@@ -123,18 +123,24 @@ def init_db():
             )
         '''))
 
-    try:
-        with engine.begin() as conn:
-            conn.execute(text("ALTER TABLE users ADD COLUMN push_frequency TEXT DEFAULT 'daily';"))
-            conn.execute(text("ALTER TABLE users ADD COLUMN tax_system TEXT;"))
-            conn.execute(text("ALTER TABLE users ADD COLUMN employee_count INT;"))
-            conn.execute(text("ALTER TABLE users ADD COLUMN has_ip_rights BOOLEAN;"))
-            conn.execute(text("ALTER TABLE users ADD COLUMN online_sales BOOLEAN;"))
-            conn.execute(text("ALTER TABLE users ADD COLUMN annual_turnover_bracket TEXT;"))
-            conn.execute(text("ALTER TABLE users ADD COLUMN main_risk_zones TEXT;"))
-            conn.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_approved BOOLEAN DEFAULT FALSE;"))
-    except Exception:
-        pass
+    # Каждую колонку добавляем ОТДЕЛЬНОЙ командой и с IF NOT EXISTS — если колонка уже есть,
+    # команда просто ничего не делает, а не ломает всё остальное, как было раньше
+    extra_columns = [
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS push_frequency TEXT DEFAULT 'daily';",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS tax_system TEXT;",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS employee_count INT;",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS has_ip_rights BOOLEAN;",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS online_sales BOOLEAN;",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS annual_turnover_bracket TEXT;",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS main_risk_zones TEXT;",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_approved BOOLEAN DEFAULT FALSE;",
+    ]
+    for statement in extra_columns:
+        try:
+            with engine.begin() as conn:
+                conn.execute(text(statement))
+        except Exception:
+            pass
 
 def save_user_data_extended(user_id, username=None, business=None, country=None, location=None, legal_form=None, push_time=None, timezone=None, tax_system=None, employee_count=None, has_ip_rights=None, online_sales=None, annual_turnover_bracket=None, main_risk_zones=None, push_frequency=None, push_days=None):
     with engine.begin() as conn:
@@ -285,6 +291,9 @@ def is_user_approved(user_id):
         if row and row[0]:
             return True
         return False
+
+# Единый текст, который видит пользователь из мини-приложения, пока заявка не одобрена
+PENDING_APPROVAL_MESSAGE = "⏳ Ваша заявка на доступ ещё рассматривается администратором. Как только её одобрят — вы получите уведомление в Telegram, и полный функционал станет доступен."
 
 # 3. УМНЫЙ РОУТЕР GROQ И ИНТЕЛЛЕКТУАЛЬНЫЙ ПАРСЕР КОМАНД СПРИНТА 3
 def safe_groq_request(messages, temperature=0.3, max_tokens=None, is_dispatcher=False):
@@ -572,9 +581,13 @@ async def handle_webapp_chat_message(request: Request):
         text_msg = data.get('text', '').strip()
         if not text_msg: return {"status": "error", "message": "Empty text"}
 
-        # ПРОВЕРКА ДОСТУПА: пока заявка не одобрена администратором, ИИ не отвечает
+        # ВАЖНО: регистрируем/обновляем пользователя в базе при любом обращении из чата,
+        # иначе он никогда не появится в панели администратора
+        save_user_data(user_id)
+
+        # Если заявка ещё не одобрена — не тратим запросы к ИИ, просто просим подождать
         if not is_user_approved(user_id):
-            return {"status": "success", "reply": "⏳ Ваша заявка еще на рассмотрении администратора.", "report": "⏳ Ваша заявка еще на рассмотрении администратора."}
+            return {"status": "success", "reply": PENDING_APPROVAL_MESSAGE, "report": PENDING_APPROVAL_MESSAGE}
 
         # Спринт 3: Проверяем команды изменения настроек через чат
         intent_result = parse_and_apply_ai_intent(user_id, text_msg)
@@ -641,10 +654,9 @@ async def handle_web_analysis(request: Request):
         
         if not details and not location: return {"status": "success"}
 
-        # ПРОВЕРКА ДОСТУПА: анкету и данные сохраняем всегда (чтобы заявка появилась в админке),
-        # но сам ИИ-анализ запускаем только для уже одобренных пользователей.
+        # Если заявка ещё не одобрена — анкету сохранили (см. выше), но отчёт не считаем
         if not is_user_approved(user_id):
-            return {"status": "success"}
+            return {"status": "success", "report": PENDING_APPROVAL_MESSAGE, "reply": PENDING_APPROVAL_MESSAGE}
 
         compiled_input = f"{country or ''} {location or ''} {legal_form or ''} {details or ''} Налог: {tax_system or ''}"
         report = generate_report_logic(user_id, compiled_input)
@@ -698,9 +710,10 @@ async def get_user_history(user_id: int, tz: str = "UTC"):
 @app.post("/api/webapp/analyze-doc")
 async def handle_webapp_doc(user_id: int, file: UploadFile = File(...)):
     try:
-        # ПРОВЕРКА ДОСТУПА
+        # Регистрируем пользователя в базе и проверяем одобрение до обработки файла
+        save_user_data(user_id)
         if not is_user_approved(user_id):
-            return {"status": "success", "report": "⏳ Ваша заявка еще на рассмотрении администратора."}
+            return {"status": "success", "report": PENDING_APPROVAL_MESSAGE, "reply": PENDING_APPROVAL_MESSAGE}
 
         file_name = file.filename.lower()
         if not (file_name.endswith('.pdf') or file_name.endswith('.docx')):
@@ -761,9 +774,10 @@ async def handle_webapp_doc(user_id: int, file: UploadFile = File(...)):
 async def handle_webapp_voice(user_id: int, file: UploadFile = File(...)):
     filename = f"webapp_voice_{user_id}.ogg"
     try:
-        # ПРОВЕРКА ДОСТУПА
+        # Регистрируем пользователя в базе и проверяем одобрение до обработки голоса
+        save_user_data(user_id)
         if not is_user_approved(user_id):
-            return {"status": "success", "user_text": "", "reply": "⏳ Ваша заявка еще на рассмотрении администратора.", "report": "⏳ Ваша заявка еще на рассмотрении администратора."}
+            return {"status": "success", "reply": PENDING_APPROVAL_MESSAGE, "report": PENDING_APPROVAL_MESSAGE}
 
         content = await file.read()
         with open(filename, 'wb') as f:
@@ -809,9 +823,8 @@ async def handle_webapp_voice(user_id: int, file: UploadFile = File(...)):
 @app.post("/api/reanalyze/{user_id}")
 async def reanalyze(user_id: int):
     try:
-        # ПРОВЕРКА ДОСТУПА
         if not is_user_approved(user_id):
-            return {"status": "error", "message": "Ваша заявка еще на рассмотрении администратора."}
+            return {"status": "success", "report": PENDING_APPROVAL_MESSAGE, "reply": PENDING_APPROVAL_MESSAGE}
 
         with engine.connect() as conn:
             result = conn.execute(text("""
