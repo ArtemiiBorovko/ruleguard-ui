@@ -46,14 +46,6 @@ groq_client = Groq(api_key=GROQ_API_KEY)
 engine = create_engine(DATABASE_URL)
 app = FastAPI()
 
-# --- ВСТАВИТЬ СРАЗУ ПОСЛЕ НЕЕ ЭТОТ БЛОК (Блокировка подозрительных IP): ---
-@app.middleware("http")
-async def block_blacklisted_ips(request: Request, call_next):
-    client_ip = request.client.host
-    if client_ip == "84.32.49.100":
-        return Response(content="Access denied", status_code=403)
-    response = await call_next(request)
-    return response
 # -------------------------------------------------------------------
 
 security = HTTPBasic()
