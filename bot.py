@@ -964,16 +964,6 @@ def get_admin_dashboard(admin: str = Depends(get_current_admin)):
             </div>
         </div>
         
-        <thead>
-            <tr>
-                <th>ID / Имя</th>
-                <th>Локация</th>
-                <th>Бизнес (Форма / Описание)</th>
-                <th>Анализ/Чаты</th>
-                <th>Доступ</th> <!-- НОВАЯ КОЛОНКА -->
-            </tr>
-        </thead>
-        
         <div class="stat-box">
             <h3>Всего пользователей в системе</h3>
             <h2 id="totalUsers">...</h2>
@@ -1002,10 +992,11 @@ def get_admin_dashboard(admin: str = Depends(get_current_admin)):
                         <th>Пуш-время</th>
                         <th>Анализ бизнеса</th>
                         <th>Диалоги в чате</th>
+                        <th>Доступ</th> <!-- Добавлен 7-й столбец для кнопки -->
                     </tr>
                 </thead>
                 <tbody id="usersTableBody">
-                    <tr><td colspan="6" style="text-align: center; color: #8E8E93;">Загрузка данных...</td></tr>
+                    <tr><td colspan="7" style="text-align: center; color: #8E8E93;">Загрузка данных...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -1025,23 +1016,28 @@ def get_admin_dashboard(admin: str = Depends(get_current_admin)):
                     data.users_details.forEach(u => {
                         const tr = document.createElement('tr');
                         
-                        // Логика кнопки
+                        // ЛОГИКА КНОПКИ: Изначально красная, при одобрении - зеленый текст
                         const accessHtml = u.is_approved 
                             ? `<span style="color: #34C759; font-weight:bold;">Одобрен</span>`
-                            : `<button onclick="approveUser(${u.user_id})" style="background:#34C759; border:none; padding:6px 12px; border-radius:5px; cursor:pointer; color:#000; font-weight:bold;">Одобрить</button>`;
+                            : `<button onclick="approveUser(${u.user_id})" style="background:#FF3B30; border:none; padding:6px 12px; border-radius:5px; cursor:pointer; color:#FFF; font-weight:bold;">Одобрить</button>`;
                             
+                        // РАСПРЕДЕЛЕНИЕ ПО СТОЛБЦАМ
                         tr.innerHTML = `
                             <td><b>${u.user_name}</b><br><span style="color: #8E8E93; font-size: 11px;">ID: ${u.user_id}</span></td>
                             <td>${u.country} / ${u.location}</td>
                             <td><b>${u.legal_form}</b><br><span style="color: #bbb; font-size: 12px;">${u.business_description}</span></td>
-                            <td><span class="badge-report">${u.reports_count}</span> | <span class="badge-chat">${u.chat_count}</span></td>
-                            <td>${accessHtml}</td> <!-- ВСТАВЛЯЕМ КНОПКУ -->
+                            <td><b>${u.push_time}</b></td> <!-- Вернули реальное пуш-время -->
+                            <td><span class="badge-report" style="background: #34C759; color: #000;">${u.reports_count}</span></td> <!-- Зеленый бейдж -->
+                            <td><span class="badge-chat" style="background: #0A84FF; color: #FFF;">${u.chat_count}</span></td> <!-- Синий бейдж -->
+                            <td>${accessHtml}</td> <!-- Кнопка доступа с краю -->
                         `;
                         tableBody.appendChild(tr);
                     });
                 } else {
-                    tableBody.innerHTML = `<tr><td colspan="6" style="text-align: center; color: #8E8E93;">Нет зарегистрированных пользователей.</td></tr>`;
+                    tableBody.innerHTML = `<tr><td colspan="7" style="text-align: center; color: #8E8E93;">Нет зарегистрированных пользователей.</td></tr>`;
                 }
+
+                // ... (дальше идет код графиков Chart.js, его оставляем без изменений) ...
 
                 new Chart(document.getElementById('locationsChart'), {
                     type: 'bar',
