@@ -1022,8 +1022,8 @@ def send_daily_push_notifications():
             today_date = now_tz.date()
             
             # ВРЕМЕННО ОТКЛЮЧЕНО ДЛЯ ТЕСТОВ: бот больше не проверяет, отправлял ли он уже пуш сегодня
-            # if last_push_date == today_date:
-            #     continue
+            if last_push_date == today_date:
+                 continue
                 
             should_send = False
             freq = (push_frequency or 'daily').lower()
