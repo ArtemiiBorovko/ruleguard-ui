@@ -334,28 +334,28 @@
                         <i class="fa-solid fa-circle-question" style="color: #22c55e;"></i> Инструкция
                     </button>
                 </div>
-                <p style="color: var(--text-muted); margin: 0; font-size: 14px;">Ежедневный юридический мониторинг</p>
+                <p style="color: var(--text-muted); margin: 0; font-size: 14px;" data-i18n="radar_subtitle">Ежедневный юридический мониторинг</p>
                 <div>
-                    <span class="status-badge" id="radar-status-badge"><i class="fa-solid fa-circle-check"></i> Мониторинг активен</span>
+                    <span class="status-badge" id="radar-status-badge" data-i18n="radar_active"><i class="fa-solid fa-circle-check"></i> Мониторинг активен</span>
                 </div>
             </div>
             
             <button class="btn-submit" id="refresh-analysis-btn" style="margin-bottom: 16px;" onclick="triggerFastAnalysis()">
                 <div class="spinner" id="refresh-spinner"></div>
-                <i class="fa-solid fa-rotate" id="refresh-icon"></i> <span id="refresh-btn-text">Обновить текущий анализ</span>
+                <i class="fa-solid fa-rotate" id="refresh-icon"></i> <span id="refresh-btn-text" data-i18n="refresh_btn">Обновить текущий анализ</span>
             </button>
             
             <div class="card" id="active-report-card">
-                <h4 style="margin: 0 0 4px 0;"><i class="fa-solid fa-brain" style="color: #30D158;"></i> Последний анализ:</h4>
+                <h4 style="margin: 0 0 4px 0;" data-i18n="last_analysis"><i class="fa-solid fa-brain" style="color: #30D158;"></i> Последний анализ:</h4>
                 <div id="ai-live-output" style="font-size: 14px; color: var(--text-muted);">
                     Загрузка актуального отчета из базы данных...
                 </div>
             </div>
 
             <div class="card" id="webapp-chat-card">
-                <h4 style="margin: 0 0 8px 0;"><i class="fa-solid fa-comments" style="color: #30D158;"></i> Обсуждение и аудит файлов:</h4>
+                <h4 style="margin: 0 0 8px 0;" data-i18n="chat_title"><i class="fa-solid fa-comments" style="color: #30D158;"></i> Обсуждение и аудит файлов:</h4>
                 <div class="chat-container" id="chat-messages-box">
-                    <div class="chat-msg assistant">Задайте любой уточняющий вопрос, надиктуйте данные о бизнесе или прикрепите документ.</div>
+                    <div class="chat-msg assistant" data-i18n="chat_welcome">Задайте любой уточняющий вопрос, надиктуйте данные о бизнесе или прикрепите документ.</div>
                 </div>
                 <div class="chat-input-row">
                     <input type="file" id="chat-file-input" accept=".pdf,.docx" style="display:none;" onchange="handleFileSelected()">
@@ -368,7 +368,7 @@
                         <i class="fa-solid fa-microphone"></i>
                     </button>
                     
-                    <input type="text" id="chat-user-input" placeholder="Вопрос юристу..." onkeydown="if(event.key==='Enter') sendChatMessage()">
+                    <input type="text" id="chat-user-input" data-i18n-placeholder="chat_placeholder" placeholder="Вопрос юристу..." onkeydown="if(event.key==='Enter') sendChatMessage()">
                     
                     <button class="chat-send-btn" id="chat-send-btn" onclick="sendChatMessage()" title="Отправить">
                         <i class="fa-solid fa-paper-plane"></i>
@@ -440,7 +440,7 @@
                     <input type="text" id="main_risk_zones" placeholder="Маркировка, трудовые договоры, эквайринг">
                 </div>
 
-                <button class="btn-submit" id="submit-btn" onclick="saveProfileData()">
+                <button class="btn-submit" id="submit-btn" onclick="saveProfileData()" data-i18n="btn_save_profile">
                     <i class="fa-solid fa-bolt"></i> <span id="btn-text">Запустить анализ рисков</span>
                 </button>
             </div>
@@ -464,15 +464,15 @@
 
         <div id="screen-settings" class="app-screen">
             <div class="card">
-                <h3>Настройки системы</h3>
+                <h3 data-i18n="settings_title">Настройки системы</h3>
                 
                 <div class="form-group">
-                    <label><i class="fa-regular fa-clock"></i> Время ежедневного пуша спокойствия</label>
+                    <label data-i18n="push_time_label"><i class="fa-regular fa-clock"></i> Время ежедневного пуша спокойствия</label>
                     <input type="time" id="push_time" value="09:00" onchange="updatePushSettingsOnServer()">
                 </div>
 
                 <div class="form-group">
-                    <label><i class="fa-solid fa-calendar-days"></i> Дни уведомлений</label>
+                    <label data-i18n="push_days_label"><i class="fa-solid fa-calendar-days"></i> Дни уведомлений</label>
                     <div class="checkbox-grid">
                         <label class="checkbox-label"><input type="checkbox" name="push_days" value="everyday" onchange="handleDaysLogic(this)"> Каждый день</label>
                         <label class="checkbox-label"><input type="checkbox" name="push_days" value="mon" onchange="handleDaysLogic(this)"> Понедельник</label>
@@ -489,8 +489,8 @@
                 <hr style="border: 0; border-top: 1px solid var(--card-border); margin: 8px 0;">
                 
                 <div class="theme-switch-box">
-                    <label><i class="fa-regular fa-moon"></i> Светлая / Темная тема</label>
-                    <button class="btn-submit" style="padding: 6px 12px; font-size: 13px; width: auto; margin: 0;" onclick="toggleTheme()">Сменить</button>
+                    <label data-i18n="theme_label"><i class="fa-regular fa-moon"></i> Светлая / Темная тема</label>
+                    <button class="btn-submit" style="padding: 6px 12px; font-size: 13px; width: auto; margin: 0;" onclick="toggleTheme()" data-i18n="theme_btn">Сменить</button>
                 </div>
 
                 <div class="theme-switch-box" style="margin-top: 12px;">
@@ -504,16 +504,16 @@
     </div>
 
     <div class="tab-bar">
-        <div class="tab-item active" id="tab-radar" onclick="switchScreen('screen-radar', this)">
+        <div class="tab-item active" id="tab-radar" onclick="switchScreen('screen-radar', this)" data-i18n="tab_radar">
             <i class="fa-solid fa-shield-halved"></i> Главная
         </div>
-        <div class="tab-item" id="tab-profile" onclick="switchScreen('screen-profile', this)">
+        <div class="tab-item" id="tab-profile" onclick="switchScreen('screen-profile', this)" data-i18n="tab_profile">
             <i class="fa-solid fa-briefcase"></i> Бизнес
         </div>
-        <div class="tab-item" id="tab-archive" onclick="switchScreen('screen-archive', this)">
+        <div class="tab-item" id="tab-archive" onclick="switchScreen('screen-archive', this)" data-i18n="tab_archive">
             <i class="fa-solid fa-box-archive"></i> Архив
         </div>
-        <div class="tab-item" id="tab-settings" onclick="switchScreen('screen-settings', this)">
+        <div class="tab-item" id="tab-settings" onclick="switchScreen('screen-settings', this)" data-i18n="tab_settings">
             <i class="fa-solid fa-gear"></i> Опции
         </div>
     </div>
@@ -607,7 +607,7 @@
                 push_days_label: '<i class="fa-solid fa-calendar-days"></i> Дни уведомлений',
                 theme_label: '<i class="fa-regular fa-moon"></i> Светлая / Темная тема',
                 theme_btn: 'Сменить',
-                lang_label: '<i class="fa-solid fa-globe"></i> Язык / Language',
+                lang_label: 'Язык / Language',
                 lang_btn_next: 'English',
                 btn_save_profile: '<i class="fa-solid fa-bolt"></i> <span id="btn-text">Запустить анализ рисков</span>'
             },
@@ -628,7 +628,7 @@
                 push_days_label: '<i class="fa-solid fa-calendar-days"></i> Notification Days',
                 theme_label: '<i class="fa-regular fa-moon"></i> Light / Dark Theme',
                 theme_btn: 'Toggle',
-                lang_label: '<i class="fa-solid fa-globe"></i> Language / Язык',
+                lang_label: 'Language / Язык',
                 lang_btn_next: 'Русский',
                 btn_save_profile: '<i class="fa-solid fa-bolt"></i> <span id="btn-text">Run Risk Analysis</span>'
             }
