@@ -34,8 +34,16 @@
         }
 
         [data-theme="light"] .btn-submit, 
-        [data-theme="light"] .theme-switch-box button {
+        [data-theme="light"] #lang-toggle-btn {
             color: #FFFFFF !important;
+        }
+
+        [data-theme="light"] .theme-toggle-icon-btn {
+            color: var(--text-main) !important;
+        }
+
+        [data-theme="light"] .theme-toggle-icon-btn:hover {
+            color: var(--accent-color) !important;
         }
 
         ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -243,7 +251,7 @@
         .theme-toggle-icon-btn {
             background: transparent;
             border: 1px solid var(--card-border);
-            color: var(--text-muted) !important; /* Теперь иконка всегда серых оттенков по умолчанию */
+            color: var(--text-muted) !important;
             border-radius: 12px;
             width: 42px;
             height: 42px;
@@ -256,8 +264,16 @@
         }
 
         .theme-toggle-icon-btn:hover {
-            color: var(--accent-color) !important; /* При наведении подсвечивается зеленым */
+            color: var(--accent-color) !important;
             border-color: var(--accent-color);
+        }
+
+        [data-theme="light"] .theme-toggle-icon-btn {
+            color: var(--text-main) !important;
+        }
+
+        [data-theme="light"] .theme-toggle-icon-btn:hover {
+            color: var(--accent-color) !important;
         }
 
         /* Переключение иконок Луна / Солнце */
