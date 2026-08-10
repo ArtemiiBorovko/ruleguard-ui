@@ -38,17 +38,9 @@
             color: #FFFFFF !important;
         }
 
-        ::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-        }
-        ::-webkit-scrollbar-track {
-            background: transparent;
-        }
-        ::-webkit-scrollbar-thumb {
-            background-color: var(--scrollbar-thumb);
-            border-radius: 4px;
-        }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background-color: var(--scrollbar-thumb); border-radius: 4px; }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -138,6 +130,7 @@
         .app-screen.active { display: flex; flex-direction: column; }
 
         .form-group { display: flex; flex-direction: column; gap: 6px; }
+        .form-group.checkbox-group { flex-direction: row; align-items: center; justify-content: space-between; }
         label { font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; }
         
         select, input, textarea {
@@ -170,120 +163,61 @@
         .theme-switch-box { display: flex; justify-content: space-between; align-items: center; }
 
         .spinner {
-            display: none;
-            width: 16px;
-            height: 16px;
-            border: 2px solid #000000;
-            border-top-color: transparent;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
+            display: none; width: 16px; height: 16px;
+            border: 2px solid #000000; border-top-color: transparent;
+            border-radius: 50%; animation: spin 0.8s linear infinite;
         }
 
         .chat-container {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            max-height: 280px;
-            overflow-y: auto;
-            padding-right: 4px;
-            margin-bottom: 10px;
+            display: flex; flex-direction: column; gap: 10px;
+            max-height: 280px; overflow-y: auto; padding-right: 4px; margin-bottom: 10px;
         }
         .chat-msg {
-            padding: 10px 14px;
-            border-radius: 12px;
-            font-size: 13px;
-            line-height: 1.4;
-            max-width: 85%;
-            word-wrap: break-word;
-            white-space: pre-line;
+            padding: 10px 14px; border-radius: 12px; font-size: 13px;
+            line-height: 1.4; max-width: 85%; word-wrap: break-word; white-space: pre-line;
         }
         .chat-msg.user {
-            background-color: var(--accent-color);
-            color: #000000;
-            align-self: flex-end;
-            border-bottom-right-radius: 4px;
+            background-color: var(--accent-color); color: #000000;
+            align-self: flex-end; border-bottom-right-radius: 4px;
         }
         .chat-msg.assistant {
-            background-color: var(--input-bg);
-            color: var(--text-main);
-            border: 1px solid var(--card-border);
-            align-self: flex-start;
-            border-bottom-left-radius: 4px;
+            background-color: var(--input-bg); color: var(--text-main);
+            border: 1px solid var(--card-border); align-self: flex-start; border-bottom-left-radius: 4px;
         }
-        .chat-input-row {
-            display: flex;
-            gap: 6px;
-            align-items: center;
-        }
-        .chat-input-row input {
-            padding: 10px;
-            font-size: 14px;
-            border-radius: 8px;
-            flex-grow: 1;
-        }
+        .chat-input-row { display: flex; gap: 6px; align-items: center; }
+        .chat-input-row input { padding: 10px; font-size: 14px; border-radius: 8px; flex-grow: 1; }
         .chat-action-btn, .chat-send-btn {
-            background-color: var(--input-bg);
-            color: var(--text-muted);
-            border: 1px solid var(--card-border);
-            border-radius: 8px;
-            width: 38px;
-            height: 38px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 14px;
-            flex-shrink: 0;
-            transition: all 0.2s ease;
+            background-color: var(--input-bg); color: var(--text-muted);
+            border: 1px solid var(--card-border); border-radius: 8px;
+            width: 38px; height: 38px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 14px; flex-shrink: 0; transition: all 0.2s ease;
         }
         .chat-action-btn { color: var(--text-main); font-size: 16px; }
         .chat-action-btn:hover, .chat-send-btn:hover {
-            color: var(--accent-color);
-            border-color: var(--accent-color);
-            transform: scale(1.05);
+            color: var(--accent-color); border-color: var(--accent-color); transform: scale(1.05);
         }
         .chat-action-btn.recording {
-            background-color: #FF3B30;
-            color: #FFFFFF;
-            animation: pulse 1.2s infinite;
+            background-color: #FF3B30; color: #FFFFFF; animation: pulse 1.2s infinite;
         }
         .chat-send-btn.active-send {
-            background-color: var(--accent-color);
-            color: #000000;
-            border-color: var(--accent-color);
+            background-color: var(--accent-color); color: #000000; border-color: var(--accent-color);
         }
 
-        .checkbox-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-            margin-top: 4px;
+        .days-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px;
         }
-        .checkbox-grid > :nth-child(1), .checkbox-grid > :nth-child(9) {
-            grid-column: 1 / -1; 
-        }
-        .checkbox-label {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 13px;
-            color: var(--text-main);
-            text-transform: none;
-            font-weight: 500;
-            background: var(--input-bg);
-            padding: 12px 14px;
-            border-radius: 10px;
-            border: 1px solid var(--card-border);
-            cursor: pointer;
+        .days-grid > :nth-child(1), .days-grid > :nth-child(9) { grid-column: 1 / -1; }
+        
+        .checkbox-btn {
+            display: flex; align-items: center; gap: 8px; font-size: 13px;
+            color: var(--text-main); background: var(--input-bg); padding: 10px 12px;
+            border-radius: 10px; border: 1px solid var(--card-border); cursor: pointer;
             transition: border-color 0.2s ease;
         }
-        .checkbox-label:hover { border-color: var(--accent-color); }
-        .checkbox-label input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
-            accent-color: var(--accent-color);
-            margin: 0;
-            cursor: pointer;
+        .checkbox-btn:hover { border-color: var(--accent-color); }
+        .checkbox-btn input[type="checkbox"] {
+            width: 16px; height: 16px; accent-color: var(--accent-color); margin: 0; cursor: pointer;
         }
 
         .modal-overlay {
@@ -303,19 +237,10 @@
         @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.08); opacity: 0.8; } 100% { transform: scale(1); opacity: 1; } }
 
         .btn-pdf {
-            background-color: rgba(255, 59, 48, 0.15);
-            color: #FF3B30;
-            border: 1px solid rgba(255, 59, 48, 0.3);
-            border-radius: 8px;
-            padding: 8px 12px;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            transition: all 0.2s ease;
-            margin-top: 12px;
+            background-color: rgba(255, 59, 48, 0.15); color: #FF3B30;
+            border: 1px solid rgba(255, 59, 48, 0.3); border-radius: 8px;
+            padding: 8px 12px; font-size: 13px; font-weight: 600; cursor: pointer;
+            display: inline-flex; align-items: center; gap: 6px; transition: all 0.2s ease; margin-top: 12px;
         }
         .btn-pdf:hover { background-color: #FF3B30; color: #fff; }
     </style>
@@ -384,7 +309,7 @@
                 
                 <div class="form-group">
                     <label data-i18n="label_country">СТРАНА / COUNTRY</label>
-                    <select id="country">
+                    <select id="country" onchange="updateBusinessForms()">
                         <option value="United States (USA)">United States (USA)</option>
                         <option value="Russia">Russia</option>
                         <option value="United Arab Emirates (UAE)">United Arab Emirates (UAE)</option>
@@ -398,24 +323,19 @@
 
                 <div class="form-group">
                     <label data-i18n="label_location">ШТАТ, ОБЛАСТЬ, ГОРОД / LOCATION</label>
-                    <input type="text" id="region" data-i18n-placeholder="ph_location" placeholder="e.g. Москва, Florida">
+                    <input type="text" id="location" data-i18n-placeholder="ph_location" placeholder="e.g. Москва, Florida">
                 </div>
 
                 <div class="form-group">
                     <label data-i18n="label_entity">ФОРМА КОМПАНИИ / LEGAL ENTITY</label>
-                    <select id="entity_type">
-                        <option value="LLC (Limited Liability Company)">LLC (Limited Liability Company) / ООО</option>
-                        <option value="Sole Proprietor / Individual Entrepreneur">Sole Proprietor / ИП</option>
-                        <option value="Corporation (Inc / Corp / C-Corp / S-Corp)">Corporation (Inc / Corp / C-Corp / S-Corp)</option>
-                        <option value="Self-Employed / Freelancer">Self-Employed / Самозанятый</option>
-                        <option value="DAO / Crypto Project">DAO / Crypto Project</option>
-                        <option value="Other">Other / Другое</option>
+                    <select id="biz_form">
+                        <!-- Динамически заполняется через JS -->
                     </select>
                 </div>
 
                 <div class="form-group">
                     <label data-i18n="label_activity">СУТЬ И СПЕЦИФИКА ДЕЯТЕЛЬНОСТИ</label>
-                    <textarea id="business_scope" rows="3" data-i18n-placeholder="ph_activity" placeholder="Опишите продукт, сотрудников..."></textarea>
+                    <textarea id="description" rows="3" data-i18n-placeholder="ph_activity" placeholder="Опишите продукт, сотрудников..."></textarea>
                 </div>
 
                 <div class="form-group">
@@ -425,12 +345,12 @@
 
                 <div class="form-group">
                     <label data-i18n="label_employees">КОЛИЧЕСТВО СОТРУДНИКОВ</label>
-                    <input type="text" id="employees_count" data-i18n-placeholder="ph_employees" placeholder="Например: 12">
+                    <input type="number" id="employee_count" data-i18n-placeholder="ph_employees" placeholder="Например: 12">
                 </div>
 
                 <div class="form-group">
                     <label data-i18n="label_revenue">ГОДОВОЙ ОБОРОТ</label>
-                    <select id="annual_turnover">
+                    <select id="annual_turnover_bracket">
                         <option value="До 10 млн" data-i18n="opt_rev_1">До 10 млн</option>
                         <option value="10 - 50 млн" data-i18n="opt_rev_2">10 - 50 млн</option>
                         <option value="50 - 100 млн" data-i18n="opt_rev_3">50 - 100 млн</option>
@@ -445,12 +365,12 @@
 
                 <div class="form-group checkbox-group">
                     <label data-i18n="label_ecom">ВЕДЕНИЕ ОНЛАЙН-ПРОДАЖ / E-COMMERCE</label>
-                    <input type="checkbox" id="has_ecommerce">
+                    <input type="checkbox" id="online_sales">
                 </div>
 
                 <div class="form-group">
                     <label data-i18n="label_risks">ОСНОВНЫЕ ЗОНЫ РИСКА (ЧЕРЕЗ ЗАПЯТУЮ)</label>
-                    <input type="text" id="key_risk_areas" data-i18n-placeholder="ph_risks" placeholder="Маркировка, трудовые договоры, эквайринг...">
+                    <input type="text" id="main_risk_zones" data-i18n-placeholder="ph_risks" placeholder="Маркировка, трудовые договоры, эквайринг...">
                 </div>
 
                 <button class="btn-submit" id="submit-btn" onclick="saveProfileData()" data-i18n="btn_save_profile">
@@ -487,15 +407,15 @@
                 <div class="form-group">
                     <label data-i18n="push_days_label"><i class="fa-solid fa-calendar-days"></i> Дни уведомлений</label>
                     <div class="days-grid">
-                        <label class="checkbox-btn"><input type="checkbox" value="everyday" onchange="updatePushSettingsOnServer()"><span data-i18n="day_everyday">Каждый день</span></label>
-                        <label class="checkbox-btn"><input type="checkbox" value="mon" onchange="updatePushSettingsOnServer()"><span data-i18n="day_mon">Понедельник</span></label>
-                        <label class="checkbox-btn"><input type="checkbox" value="tue" onchange="updatePushSettingsOnServer()"><span data-i18n="day_tue">Вторник</span></label>
-                        <label class="checkbox-btn"><input type="checkbox" value="wed" onchange="updatePushSettingsOnServer()"><span data-i18n="day_wed">Среда</span></label>
-                        <label class="checkbox-btn"><input type="checkbox" value="thu" onchange="updatePushSettingsOnServer()"><span data-i18n="day_thu">Четверг</span></label>
-                        <label class="checkbox-btn"><input type="checkbox" value="fri" onchange="updatePushSettingsOnServer()"><span data-i18n="day_fri">Пятница</span></label>
-                        <label class="checkbox-btn"><input type="checkbox" value="sat" onchange="updatePushSettingsOnServer()"><span data-i18n="day_sat">Суббота</span></label>
-                        <label class="checkbox-btn"><input type="checkbox" value="sun" onchange="updatePushSettingsOnServer()"><span data-i18n="day_sun">Воскресенье</span></label>
-                        <label class="checkbox-btn"><input type="checkbox" value="monthly" onchange="updatePushSettingsOnServer()"><span data-i18n="day_monthly">Раз в месяц</span></label>
+                        <label class="checkbox-btn"><input type="checkbox" name="push_days" value="everyday" onchange="handleDaysLogic(this)"><span data-i18n="day_everyday">Каждый день</span></label>
+                        <label class="checkbox-btn"><input type="checkbox" name="push_days" value="mon" onchange="handleDaysLogic(this)"><span data-i18n="day_mon">Понедельник</span></label>
+                        <label class="checkbox-btn"><input type="checkbox" name="push_days" value="tue" onchange="handleDaysLogic(this)"><span data-i18n="day_tue">Вторник</span></label>
+                        <label class="checkbox-btn"><input type="checkbox" name="push_days" value="wed" onchange="handleDaysLogic(this)"><span data-i18n="day_wed">Среда</span></label>
+                        <label class="checkbox-btn"><input type="checkbox" name="push_days" value="thu" onchange="handleDaysLogic(this)"><span data-i18n="day_thu">Четверг</span></label>
+                        <label class="checkbox-btn"><input type="checkbox" name="push_days" value="fri" onchange="handleDaysLogic(this)"><span data-i18n="day_fri">Пятница</span></label>
+                        <label class="checkbox-btn"><input type="checkbox" name="push_days" value="sat" onchange="handleDaysLogic(this)"><span data-i18n="day_sat">Суббота</span></label>
+                        <label class="checkbox-btn"><input type="checkbox" name="push_days" value="sun" onchange="handleDaysLogic(this)"><span data-i18n="day_sun">Воскресенье</span></label>
+                        <label class="checkbox-btn"><input type="checkbox" name="push_days" value="monthly" onchange="handleDaysLogic(this)"><span data-i18n="day_monthly">Раз в месяц</span></label>
                     </div>
                 </div>
 
@@ -507,8 +427,8 @@
                 </div>
 
                 <div class="theme-switch-box" style="margin-top: 12px;">
-                    <label><i class="fa-solid fa-globe"></i> <span data-i18n="lang_label">Language</span></label>
-                    <button class="btn-submit" id="lang-toggle-btn" style="padding: 6px 12px; font-size: 13px; width: auto; margin: 0;" onclick="toggleLanguage()" data-i18n="lang_btn_next">
+                    <label><i class="fa-solid fa-globe"></i> <span data-i18n="lang_label">Язык</span></label>
+                    <button class="btn-submit" id="lang-toggle-btn" style="padding: 6px 12px; font-size: 13px; width: auto; margin: 0;" onclick="toggleLanguage()">
                         EN
                     </button>
                 </div>
@@ -531,12 +451,11 @@
         </div>
     </div>
 
-    <!-- Пошаговое модальное окно онбординга (Слайдер) -->
+    <!-- Пошаговое модальное окно онбординга -->
     <div id="onboarding-modal" class="modal-overlay" style="display: none;">
-        <div class="card modal-card" style="padding: 30px;">
+        <div class="card modal-card" style="padding: 30px; position: relative;">
             <div style="font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--accent-color); margin-bottom: 8px;" id="step-indicator">Шаг 1 из 3</div>
 
-            <!-- Слайд 1 -->
             <div class="onboarding-step" data-step="1">
                 <div style="text-align: center; margin-bottom: 12px;">
                     <i class="fa-solid fa-wand-magic-sparkles" style="font-size: 40px; color: var(--accent-color);"></i>
@@ -547,7 +466,6 @@
                 </p>
             </div>
 
-            <!-- Слайд 2 -->
             <div class="onboarding-step" data-step="2" style="display: none;">
                 <div style="text-align: center; margin-bottom: 12px;">
                     <i class="fa-solid fa-gears" style="font-size: 40px; color: var(--accent-color);"></i>
@@ -562,7 +480,6 @@
                 </div>
             </div>
 
-            <!-- Слайд 3 -->
             <div class="onboarding-step" data-step="3" style="display: none;">
                 <div style="text-align: center; margin-bottom: 12px;">
                     <i class="fa-solid fa-microphone-lines" style="font-size: 40px; color: var(--accent-color);"></i>
@@ -576,7 +493,6 @@
                 </div>
             </div>
 
-            <!-- Кнопки управления слайдером -->
             <div style="display: flex; gap: 10px; margin-top: 10px;">
                 <button id="prev-btn" onclick="changeStep(-1)" style="display: none; flex: 1; background: transparent; color: var(--text-main); border: 1px solid var(--card-border); padding: 12px; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 14px;">
                     Назад
@@ -586,7 +502,6 @@
                 </button>
             </div>
             
-            <!-- Крестик закрытия -->
             <button onclick="closeOnboardingModal()" style="position: absolute; top: 18px; right: 18px; background: none; border: none; color: var(--text-main); font-size: 18px; cursor: pointer; opacity: 0.6; padding: 4px;" title="Закрыть">
                 <i class="fa-solid fa-xmark"></i>
             </button>
@@ -601,19 +516,13 @@
         const userTelegramId = tg.initDataUnsafe?.user?.id || 542709522; 
         const userTelegramName = tg.initDataUnsafe?.user?.first_name || "Предприниматель";
 
-        // 1. Словарь переводов
         const translations = {
             ru: {
-                // Шапка и общие элементы
                 btn_instruction: '<i class="fa-solid fa-circle-question"></i> Инструкция',
-                
-                // Навигация
                 tab_radar: '<i class="fa-solid fa-shield-halved"></i> Главная',
                 tab_profile: '<i class="fa-solid fa-briefcase"></i> Бизнес',
                 tab_archive: '<i class="fa-solid fa-box-archive"></i> Архив',
                 tab_settings: '<i class="fa-solid fa-gear"></i> Опции',
-
-                // Главный экран (Радар)
                 radar_subtitle: 'Ежедневный юридический мониторинг',
                 radar_active: '<i class="fa-solid fa-circle-check"></i> Мониторинг активен',
                 refresh_btn: 'Обновить текущий анализ',
@@ -621,14 +530,10 @@
                 chat_title: '<i class="fa-solid fa-comments" style="color: #30D158;"></i> Обсуждение и аудит файлов:',
                 chat_welcome: 'Задайте любой уточняющий вопрос, надиктуйте данные о бизнесе или прикрепите документ.',
                 chat_placeholder: 'Вопрос юристу...',
-
-                // Архив
                 archive_title: 'Архив отчетов',
                 archive_search_placeholder: 'Поиск по названию бизнеса...',
                 report_prefix: 'Отчет от',
                 btn_download_pdf: '<i class="fa-solid fa-file-pdf"></i> Скачать PDF',
-
-                // Параметры бизнеса (Форма)
                 profile_title: 'Параметры бизнеса',
                 profile_subtitle: 'Расширенный профиль для адаптации ИИ',
                 label_country: 'СТРАНА / COUNTRY',
@@ -651,8 +556,6 @@
                 label_risks: 'ОСНОВНЫЕ ЗОНЫ РИСКА (ЧЕРЕЗ ЗАПЯТУЮ)',
                 ph_risks: 'Маркировка, трудовые договоры, эквайринг...',
                 btn_save_profile: '<i class="fa-solid fa-bolt"></i> <span id="btn-text">Запустить анализ рисков</span>',
-
-                // Настройки и дни недели
                 settings_title: 'Настройки системы',
                 push_time_label: '<i class="fa-regular fa-clock"></i> Время ежедневного пуша спокойствия',
                 push_days_label: '<i class="fa-solid fa-calendar-days"></i> Дни уведомлений',
@@ -666,21 +569,16 @@
                 day_sun: 'Воскресенье',
                 day_monthly: 'Раз в месяц',
                 theme_label: 'Светлая / Темная тема',
-                theme_btn: 'Toggle',
-                lang_label: 'Language',
+                theme_btn: 'Переключить',
+                lang_label: 'Язык',
                 lang_btn_next: 'EN'
             },
             en: {
-                // Header & General
                 btn_instruction: '<i class="fa-solid fa-circle-question"></i> Guide',
-
-                // Navigation
                 tab_radar: '<i class="fa-solid fa-shield-halved"></i> Home',
                 tab_profile: '<i class="fa-solid fa-briefcase"></i> Business',
                 tab_archive: '<i class="fa-solid fa-box-archive"></i> Archive',
                 tab_settings: '<i class="fa-solid fa-gear"></i> Options',
-
-                // Main Screen (Radar)
                 radar_subtitle: 'Daily Legal Monitoring',
                 radar_active: '<i class="fa-solid fa-circle-check"></i> Monitoring active',
                 refresh_btn: 'Refresh current analysis',
@@ -688,14 +586,10 @@
                 chat_title: '<i class="fa-solid fa-comments" style="color: #30D158;"></i> Discussion & File Audit:',
                 chat_welcome: 'Ask any clarifying question, dictate business data, or attach a document.',
                 chat_placeholder: 'Ask the lawyer...',
-
-                // Archive
                 archive_title: 'Report Archive',
                 archive_search_placeholder: 'Search by business name...',
                 report_prefix: 'Report from',
                 btn_download_pdf: '<i class="fa-solid fa-file-pdf"></i> Download PDF',
-
-                // Business Profile Form
                 profile_title: 'Business Parameters',
                 profile_subtitle: 'Advanced profile for AI adaptation',
                 label_country: 'COUNTRY',
@@ -718,8 +612,6 @@
                 label_risks: 'KEY RISK AREAS (COMMA SEPARATED)',
                 ph_risks: 'Labeling, employment contracts, acquiring...',
                 btn_save_profile: '<i class="fa-solid fa-bolt"></i> <span id="btn-text">Run Risk Analysis</span>',
-
-                // Settings & Weekdays
                 settings_title: 'System Settings',
                 push_time_label: '<i class="fa-regular fa-clock"></i> Daily Push Time',
                 push_days_label: '<i class="fa-solid fa-calendar-days"></i> Notification Days',
@@ -739,28 +631,21 @@
             }
         };
 
-        // 2. Определение начального языка
         function getInitialLanguage() {
             const savedLang = localStorage.getItem('ruleguard_lang');
             if (savedLang) return savedLang;
-
             const tgLang = tg.initDataUnsafe?.user?.language_code;
-            if (tgLang) {
-                return tgLang.toLowerCase().startsWith('ru') ? 'ru' : 'en';
-            }
-
+            if (tgLang) return tgLang.toLowerCase().startsWith('ru') ? 'ru' : 'en';
             const sysLang = navigator.language || 'ru';
             return sysLang.toLowerCase().startsWith('ru') ? 'ru' : 'en';
         }
 
         let currentLang = getInitialLanguage();
 
-        // 3. Функция применения языка к DOM
         function applyLanguage(lang) {
             currentLang = lang;
             localStorage.setItem('ruleguard_lang', lang);
 
-            // Обновляем текстовые элементы
             document.querySelectorAll('[data-i18n]').forEach(el => {
                 const key = el.getAttribute('data-i18n');
                 if (translations[lang] && translations[lang][key]) {
@@ -768,7 +653,6 @@
                 }
             });
 
-            // Обновляем placeholder в полях ввода
             document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
                 const key = el.getAttribute('data-i18n-placeholder');
                 if (translations[lang] && translations[lang][key]) {
@@ -776,20 +660,17 @@
                 }
             });
 
-            // Обновляем текст кнопки переключения языка
             const langBtn = document.getElementById('lang-toggle-btn');
             if (langBtn) {
                 langBtn.innerText = translations[lang].lang_btn_next;
             }
         }
 
-        // 4. Переключатель языка по кнопке
         function toggleLanguage() {
             const newLang = currentLang === 'ru' ? 'en' : 'ru';
             applyLanguage(newLang);
         }
 
-        // Вызываем при старте приложения
         document.addEventListener('DOMContentLoaded', () => {
             applyLanguage(currentLang);
         });
@@ -798,7 +679,6 @@
         let audioChunks = [];
         let globalHistoryCache = []; 
 
-        // Логика слайдера онбординга
         let currentStep = 1;
         const totalSteps = 3;
 
@@ -806,7 +686,6 @@
             document.querySelectorAll('.onboarding-step').forEach(el => {
                 el.style.display = el.getAttribute('data-step') == currentStep ? 'block' : 'none';
             });
-
             const indicator = document.getElementById('step-indicator');
             if (indicator) indicator.innerText = `Шаг ${currentStep} из ${totalSteps}`;
 
@@ -931,7 +810,7 @@
                         if (data.profile.legal_form) document.getElementById('biz_form').value = data.profile.legal_form;
                         if (data.profile.business_description) document.getElementById('description').value = data.profile.business_description;
                         if (data.profile.tax_system) document.getElementById('tax_system').value = data.profile.tax_system;
-                        if (data.profile.employee_count) document.getElementById('employee_count').value = data.profile.employee_count;
+                        if (data.profile.employee_count !== undefined) document.getElementById('employee_count').value = data.profile.employee_count;
                         if (data.profile.has_ip_rights !== undefined) document.getElementById('has_ip_rights').checked = data.profile.has_ip_rights;
                         if (data.profile.online_sales !== undefined) document.getElementById('online_sales').checked = data.profile.online_sales;
                         if (data.profile.annual_turnover_bracket) document.getElementById('annual_turnover_bracket').value = data.profile.annual_turnover_bracket;
@@ -1011,7 +890,6 @@
             .then(data => {
                 if (data.status === 'success') {
                     box.innerHTML += `<div class="chat-msg assistant">${data.report}</div>`;
-                    
                     if (data.action && data.action !== 'none') {
                         if (data.updated_fields && data.updated_fields.theme) {
                             if (data.updated_fields.theme === 'light' && !document.body.hasAttribute('data-theme')) toggleTheme();
@@ -1133,7 +1011,6 @@
                 document.getElementById('voice-loading-msg')?.remove();
                 if (data.status === 'success') {
                     box.innerHTML += `<div class="chat-msg assistant"><i>Текст вашего аудио: "${data.user_text}"</i>\n\n${data.report}</div>`;
-                    
                     if (data.action && data.action !== 'none') {
                         if (data.updated_fields && data.updated_fields.theme) {
                             if (data.updated_fields.theme === 'light' && !document.body.hasAttribute('data-theme')) toggleTheme();
@@ -1189,7 +1066,7 @@
             });
         }
 
-function renderArchive(historyArray) {
+        function renderArchive(historyArray) {
             const archiveList = document.getElementById('archive-list');
             archiveList.innerHTML = '';
             
@@ -1210,7 +1087,6 @@ function renderArchive(historyArray) {
                         <div style="font-size:13px; line-height:1.4; max-height: 150px; overflow-y: auto; color:var(--text-main); white-space: pre-line;">
                             ${item.report_text}
                         </div>
-                        <!-- ВОТ СЮДА МЫ ДОБАВИЛИ КНОПКУ -->
                         <button class="btn-pdf" onclick='downloadPdf(this, ${JSON.stringify(item.report_text)})'>
                             <i class="fa-solid fa-file-pdf"></i> Скачать PDF
                         </button>
@@ -1218,6 +1094,7 @@ function renderArchive(historyArray) {
                 `;
             });
         }
+
         function filterArchive() {
             const query = document.getElementById('archive-search-input').value.toLowerCase().trim();
             if (!query) {
@@ -1290,17 +1167,17 @@ function renderArchive(historyArray) {
         }
 
         const forms = {
-            USA: [
+            "United States (USA)": [
                 { value: 'LLC', text: 'LLC (Limited Liability Company)' },
                 { value: 'C-Corp', text: 'C-Corporation' },
                 { value: 'Sole Proprietorship', text: 'Sole Proprietorship' }
             ],
-            Russia: [
+            "Russia": [
                 { value: 'ИП', text: 'ИП (Индивидуальный предприниматель)' },
                 { value: 'ООО', text: 'ООО (Общество с огр. ответственностью)' },
                 { value: 'Самозанятый', text: 'Самозанятость (НПД)' }
             ],
-            Other: [
+            "Other": [
                 { value: 'Individual', text: 'Individual Entrepreneur' },
                 { value: 'Corporate', text: 'Corporate Entity' }
             ]
@@ -1309,8 +1186,11 @@ function renderArchive(historyArray) {
         function updateBusinessForms() {
             const country = document.getElementById('country').value;
             const formSelect = document.getElementById('biz_form');
+            if (!formSelect) return;
             formSelect.innerHTML = '';
-            (forms[country] || forms['Other']).forEach(item => {
+            
+            const options = forms[country] || forms['Other'];
+            options.forEach(item => {
                 const option = document.createElement('option');
                 option.value = item.value;
                 option.text = item.text;
@@ -1382,21 +1262,14 @@ function renderArchive(historyArray) {
             });
         }
 
-        updateBusinessForms();
-        loadTheme();
-        loadDataFromServer();
         function downloadPdf(btnElement, reportText) {
             const originalHTML = btnElement.innerHTML;
             btnElement.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Открываю...';
             btnElement.disabled = true;
 
-            // Кодируем текст отчета, чтобы передать его в ссылке на бэкенд
             const encodedText = encodeURIComponent(reportText);
             const downloadUrl = `${BACKEND_URL}/api/download-pdf?text=${encodedText}`;
 
-            // Единственный способ в Telegram WebApp скачать файл без ошибки sandbox — 
-            // использовать openLink, чтобы Telegram открыл ссылку в системном браузере устройства (Safari/Chrome),
-            // где скачивание файлов работает без ограничений.
             if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.openLink) {
                 window.Telegram.WebApp.openLink(downloadUrl);
             } else {
@@ -1408,6 +1281,10 @@ function renderArchive(historyArray) {
                 btnElement.disabled = false;
             }, 1000);
         }
+
+        updateBusinessForms();
+        loadTheme();
+        loadDataFromServer();
     </script>
 </body>
 </html>
