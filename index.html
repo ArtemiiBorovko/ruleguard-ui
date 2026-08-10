@@ -331,7 +331,7 @@
                 <div style="margin-bottom: 15px;">
                     <h2 style="margin: 0 0 8px 0; font-size: 24px;">RuleGuard AI</h2>
                     <button onclick="openOnboardingModal()" title="Справка и инструкция" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); cursor: pointer; font-size: 13px; padding: 6px 14px; border-radius: 8px; color: var(--text-main); display: inline-flex; align-items: center; gap: 6px;">
-                        <i class="fa-solid fa-circle-question" style="color: #22c55e;"></i> Инструкция
+                        <i class="fa-solid fa-circle-question" style="color: #22c55e;"></i> <span data-i18n="btn_instruction">Инструкция</span>
                     </button>
                 </div>
                 <p style="color: var(--text-muted); margin: 0; font-size: 14px;" data-i18n="radar_subtitle">Ежедневный юридический мониторинг</p>
@@ -379,65 +379,78 @@
 
         <div id="screen-profile" class="app-screen">
             <div class="card">
-                <h3 style="margin: 0 0 4px 0;">Параметры бизнеса</h3>
-                <p style="color: var(--text-muted); font-size: 13px; margin: 0 0 10px 0;">Расширенный профиль для адаптации ИИ</p>
+                <h3 data-i18n="profile_title">Параметры бизнеса</h3>
+                <p style="color: var(--text-muted); margin-top: -8px; font-size: 13px;" data-i18n="profile_subtitle">Расширенный профиль для адаптации ИИ</p>
                 
                 <div class="form-group">
-                    <label>Страна / Country</label>
-                    <select id="country" onchange="updateBusinessForms()">
-                        <option value="USA">United States (USA)</option>
-                        <option value="Russia">Россия (Russia)</option>
-                        <option value="Other">Другая страна / Other</option>
+                    <label data-i18n="label_country">СТРАНА / COUNTRY</label>
+                    <select id="country">
+                        <option value="United States (USA)">United States (USA)</option>
+                        <option value="Russia">Russia</option>
+                        <option value="United Arab Emirates (UAE)">United Arab Emirates (UAE)</option>
+                        <option value="Kazakhstan">Kazakhstan</option>
+                        <option value="Cyprus">Cyprus</option>
+                        <option value="Georgia">Georgia</option>
+                        <option value="Armenia">Armenia</option>
+                        <option value="Other">Other / Другая страна</option>
                     </select>
                 </div>
 
                 <div class="form-group">
-                    <label>Штат, область, город / Location</label>
-                    <input type="text" id="location" placeholder="e.g. Москва, Florida">
+                    <label data-i18n="label_location">ШТАТ, ОБЛАСТЬ, ГОРОД / LOCATION</label>
+                    <input type="text" id="region" data-i18n-placeholder="ph_location" placeholder="e.g. Москва, Florida">
                 </div>
 
                 <div class="form-group">
-                    <label>Форма компании / Legal Entity</label>
-                    <select id="biz_form"></select>
-                </div>
-
-                <div class="form-group">
-                    <label>Суть и специфика деятельности</label>
-                    <textarea id="description" placeholder="Опишите продукт, сотрудников..."></textarea>
-                </div>
-
-                <div class="form-group">
-                    <label>Система налогообложения</label>
-                    <input type="text" id="tax_system" placeholder="Например: УСН Доходы минус Расходы">
-                </div>
-
-                <div class="form-group">
-                    <label>Количество сотрудников</label>
-                    <input type="number" id="employee_count" placeholder="Например: 12">
-                </div>
-
-                <div class="form-group">
-                    <label>Годовой оборот</label>
-                    <select id="annual_turnover_bracket">
-                        <option value="<10M">До 10 млн</option>
-                        <option value="10M-50M">10M - 50M</option>
-                        <option value=">50M">Более 50 млн</option>
+                    <label data-i18n="label_entity">ФОРМА КОМПАНИИ / LEGAL ENTITY</label>
+                    <select id="entity_type">
+                        <option value="LLC (Limited Liability Company)">LLC (Limited Liability Company) / ООО</option>
+                        <option value="Sole Proprietor / Individual Entrepreneur">Sole Proprietor / ИП</option>
+                        <option value="Corporation (Inc / Corp / C-Corp / S-Corp)">Corporation (Inc / Corp / C-Corp / S-Corp)</option>
+                        <option value="Self-Employed / Freelancer">Self-Employed / Самозанятый</option>
+                        <option value="DAO / Crypto Project">DAO / Crypto Project</option>
+                        <option value="Other">Other / Другое</option>
                     </select>
                 </div>
 
-                <div class="form-group" style="flex-direction: row; align-items: center; justify-content: space-between; background: var(--input-bg); padding: 10px 12px; border-radius: 10px; border: 1px solid var(--card-border);">
-                    <label style="margin:0;">Наличие IP-прав (товарные знаки, патенты)</label>
-                    <input type="checkbox" id="has_ip_rights" style="width: 20px; height: 20px; accent-color: var(--accent-color); cursor: pointer;">
-                </div>
-
-                <div class="form-group" style="flex-direction: row; align-items: center; justify-content: space-between; background: var(--input-bg); padding: 10px 12px; border-radius: 10px; border: 1px solid var(--card-border);">
-                    <label style="margin:0;">Ведение онлайн-продаж / E-commerce</label>
-                    <input type="checkbox" id="online_sales" style="width: 20px; height: 20px; accent-color: var(--accent-color); cursor: pointer;">
+                <div class="form-group">
+                    <label data-i18n="label_activity">СУТЬ И СПЕЦИФИКА ДЕЯТЕЛЬНОСТИ</label>
+                    <textarea id="business_scope" rows="3" data-i18n-placeholder="ph_activity" placeholder="Опишите продукт, сотрудников..."></textarea>
                 </div>
 
                 <div class="form-group">
-                    <label>Основные зоны риска (через запятую)</label>
-                    <input type="text" id="main_risk_zones" placeholder="Маркировка, трудовые договоры, эквайринг">
+                    <label data-i18n="label_tax">СИСТЕМА НАЛОГООБЛОЖЕНИЯ</label>
+                    <input type="text" id="tax_system" data-i18n-placeholder="ph_tax" placeholder="Например: УСН Доходы минус Расходы">
+                </div>
+
+                <div class="form-group">
+                    <label data-i18n="label_employees">КОЛИЧЕСТВО СОТРУДНИКОВ</label>
+                    <input type="text" id="employees_count" data-i18n-placeholder="ph_employees" placeholder="Например: 12">
+                </div>
+
+                <div class="form-group">
+                    <label data-i18n="label_revenue">ГОДОВОЙ ОБОРОТ</label>
+                    <select id="annual_turnover">
+                        <option value="До 10 млн" data-i18n="opt_rev_1">До 10 млн</option>
+                        <option value="10 - 50 млн" data-i18n="opt_rev_2">10 - 50 млн</option>
+                        <option value="50 - 100 млн" data-i18n="opt_rev_3">50 - 100 млн</option>
+                        <option value="Более 100 млн" data-i18n="opt_rev_4">Более 100 млн</option>
+                    </select>
+                </div>
+
+                <div class="form-group checkbox-group">
+                    <label data-i18n="label_ip">НАЛИЧИЕ IP-ПРАВ (ТОВАРНЫЕ ЗНАКИ, ПАТЕНТЫ)</label>
+                    <input type="checkbox" id="has_ip_rights">
+                </div>
+
+                <div class="form-group checkbox-group">
+                    <label data-i18n="label_ecom">ВЕДЕНИЕ ОНЛАЙН-ПРОДАЖ / E-COMMERCE</label>
+                    <input type="checkbox" id="has_ecommerce">
+                </div>
+
+                <div class="form-group">
+                    <label data-i18n="label_risks">ОСНОВНЫЕ ЗОНЫ РИСКА (ЧЕРЕЗ ЗАПЯТУЮ)</label>
+                    <input type="text" id="key_risk_areas" data-i18n-placeholder="ph_risks" placeholder="Маркировка, трудовые договоры, эквайринг...">
                 </div>
 
                 <button class="btn-submit" id="submit-btn" onclick="saveProfileData()" data-i18n="btn_save_profile">
@@ -448,10 +461,10 @@
 
         <div id="screen-archive" class="app-screen">
             <div class="card" style="margin-bottom: 12px;">
-                <h3 style="margin: 0 0 8px 0;">Архив отчетов</h3>
+                <h3 style="margin: 0 0 8px 0;" data-i18n="archive_title">Архив отчетов</h3>
                 <div style="position: relative; display: flex; align-items: center;">
                     <i class="fa-solid fa-magnifying-glass" style="position: absolute; left: 14px; color: var(--text-muted);"></i>
-                    <input type="text" id="archive-search-input" placeholder="Поиск по названию бизнеса..." oninput="filterArchive()" autocomplete="off" style="padding-left: 40px;">
+                    <input type="text" id="archive-search-input" data-i18n-placeholder="archive_search_placeholder" placeholder="Поиск по названию бизнеса..." oninput="filterArchive()" autocomplete="off" style="padding-left: 40px;">
                 </div>
             </div>
             <div id="archive-list">
@@ -470,33 +483,33 @@
                     <label data-i18n="push_time_label"><i class="fa-regular fa-clock"></i> Время ежедневного пуша спокойствия</label>
                     <input type="time" id="push_time" value="09:00" onchange="updatePushSettingsOnServer()">
                 </div>
-
+                
                 <div class="form-group">
                     <label data-i18n="push_days_label"><i class="fa-solid fa-calendar-days"></i> Дни уведомлений</label>
-                    <div class="checkbox-grid">
-                        <label class="checkbox-label"><input type="checkbox" name="push_days" value="everyday" onchange="handleDaysLogic(this)"> Каждый день</label>
-                        <label class="checkbox-label"><input type="checkbox" name="push_days" value="mon" onchange="handleDaysLogic(this)"> Понедельник</label>
-                        <label class="checkbox-label"><input type="checkbox" name="push_days" value="tue" onchange="handleDaysLogic(this)"> Вторник</label>
-                        <label class="checkbox-label"><input type="checkbox" name="push_days" value="wed" onchange="handleDaysLogic(this)"> Среда</label>
-                        <label class="checkbox-label"><input type="checkbox" name="push_days" value="thu" onchange="handleDaysLogic(this)"> Четверг</label>
-                        <label class="checkbox-label"><input type="checkbox" name="push_days" value="fri" onchange="handleDaysLogic(this)"> Пятница</label>
-                        <label class="checkbox-label"><input type="checkbox" name="push_days" value="sat" onchange="handleDaysLogic(this)"> Суббота</label>
-                        <label class="checkbox-label"><input type="checkbox" name="push_days" value="sun" onchange="handleDaysLogic(this)"> Воскресенье</label>
-                        <label class="checkbox-label"><input type="checkbox" name="push_days" value="monthly" onchange="handleDaysLogic(this)"> Раз в месяц</label>
+                    <div class="days-grid">
+                        <label class="checkbox-btn"><input type="checkbox" value="everyday" onchange="updatePushSettingsOnServer()"><span data-i18n="day_everyday">Каждый день</span></label>
+                        <label class="checkbox-btn"><input type="checkbox" value="mon" onchange="updatePushSettingsOnServer()"><span data-i18n="day_mon">Понедельник</span></label>
+                        <label class="checkbox-btn"><input type="checkbox" value="tue" onchange="updatePushSettingsOnServer()"><span data-i18n="day_tue">Вторник</span></label>
+                        <label class="checkbox-btn"><input type="checkbox" value="wed" onchange="updatePushSettingsOnServer()"><span data-i18n="day_wed">Среда</span></label>
+                        <label class="checkbox-btn"><input type="checkbox" value="thu" onchange="updatePushSettingsOnServer()"><span data-i18n="day_thu">Четверг</span></label>
+                        <label class="checkbox-btn"><input type="checkbox" value="fri" onchange="updatePushSettingsOnServer()"><span data-i18n="day_fri">Пятница</span></label>
+                        <label class="checkbox-btn"><input type="checkbox" value="sat" onchange="updatePushSettingsOnServer()"><span data-i18n="day_sat">Суббота</span></label>
+                        <label class="checkbox-btn"><input type="checkbox" value="sun" onchange="updatePushSettingsOnServer()"><span data-i18n="day_sun">Воскресенье</span></label>
+                        <label class="checkbox-btn"><input type="checkbox" value="monthly" onchange="updatePushSettingsOnServer()"><span data-i18n="day_monthly">Раз в месяц</span></label>
                     </div>
                 </div>
-                
+
                 <hr style="border: 0; border-top: 1px solid var(--card-border); margin: 8px 0;">
-                
+
                 <div class="theme-switch-box">
-                    <label data-i18n="theme_label"><i class="fa-regular fa-moon"></i> Светлая / Темная тема</label>
-                    <button class="btn-submit" style="padding: 6px 12px; font-size: 13px; width: auto; margin: 0;" onclick="toggleTheme()" data-i18n="theme_btn">Сменить</button>
+                    <label><i class="fa-regular fa-moon"></i> <span data-i18n="theme_label">Светлая / Темная тема</span></label>
+                    <button class="btn-submit" style="padding: 6px 12px; font-size: 13px; width: auto; margin: 0;" onclick="toggleTheme()" data-i18n="theme_btn">Toggle</button>
                 </div>
 
                 <div class="theme-switch-box" style="margin-top: 12px;">
-                    <label><i class="fa-solid fa-globe"></i> <span data-i18n="lang_label">Язык / Language</span></label>
-                    <button class="btn-submit" id="lang-toggle-btn" style="padding: 6px 12px; font-size: 13px; width: auto; margin: 0;" onclick="toggleLanguage()">
-                        English
+                    <label><i class="fa-solid fa-globe"></i> <span data-i18n="lang_label">Language</span></label>
+                    <button class="btn-submit" id="lang-toggle-btn" style="padding: 6px 12px; font-size: 13px; width: auto; margin: 0;" onclick="toggleLanguage()" data-i18n="lang_btn_next">
+                        EN
                     </button>
                 </div>
             </div>
@@ -591,10 +604,16 @@
         // 1. Словарь переводов
         const translations = {
             ru: {
+                // Шапка и общие элементы
+                btn_instruction: '<i class="fa-solid fa-circle-question"></i> Инструкция',
+                
+                // Навигация
                 tab_radar: '<i class="fa-solid fa-shield-halved"></i> Главная',
                 tab_profile: '<i class="fa-solid fa-briefcase"></i> Бизнес',
                 tab_archive: '<i class="fa-solid fa-box-archive"></i> Архив',
                 tab_settings: '<i class="fa-solid fa-gear"></i> Опции',
+
+                // Главный экран (Радар)
                 radar_subtitle: 'Ежедневный юридический мониторинг',
                 radar_active: '<i class="fa-solid fa-circle-check"></i> Мониторинг активен',
                 refresh_btn: 'Обновить текущий анализ',
@@ -602,20 +621,66 @@
                 chat_title: '<i class="fa-solid fa-comments" style="color: #30D158;"></i> Обсуждение и аудит файлов:',
                 chat_welcome: 'Задайте любой уточняющий вопрос, надиктуйте данные о бизнесе или прикрепите документ.',
                 chat_placeholder: 'Вопрос юристу...',
+
+                // Архив
+                archive_title: 'Архив отчетов',
+                archive_search_placeholder: 'Поиск по названию бизнеса...',
+                report_prefix: 'Отчет от',
+                btn_download_pdf: '<i class="fa-solid fa-file-pdf"></i> Скачать PDF',
+
+                // Параметры бизнеса (Форма)
+                profile_title: 'Параметры бизнеса',
+                profile_subtitle: 'Расширенный профиль для адаптации ИИ',
+                label_country: 'СТРАНА / COUNTRY',
+                label_location: 'ШТАТ, ОБЛАСТЬ, ГОРОД / LOCATION',
+                ph_location: 'e.g. Москва, Florida',
+                label_entity: 'ФОРМА КОМПАНИИ / LEGAL ENTITY',
+                label_activity: 'СУТЬ И СПЕЦИФИКА ДЕЯТЕЛЬНОСТИ',
+                ph_activity: 'Опишите продукт, сотрудников...',
+                label_tax: 'СИСТЕМА НАЛОГООБЛОЖЕНИЯ',
+                ph_tax: 'Например: УСН Доходы минус Расходы',
+                label_employees: 'КОЛИЧЕСТВО СОТРУДНИКОВ',
+                ph_employees: 'Например: 12',
+                label_revenue: 'ГОДОВОЙ ОБОРОТ',
+                opt_rev_1: 'До 10 млн',
+                opt_rev_2: '10 - 50 млн',
+                opt_rev_3: '50 - 100 млн',
+                opt_rev_4: 'Более 100 млн',
+                label_ip: 'НАЛИЧИЕ IP-ПРАВ (ТОВАРНЫЕ ЗНАКИ, ПАТЕНТЫ)',
+                label_ecom: 'ВЕДЕНИЕ ОНЛАЙН-ПРОДАЖ / E-COMMERCE',
+                label_risks: 'ОСНОВНЫЕ ЗОНЫ РИСКА (ЧЕРЕЗ ЗАПЯТУЮ)',
+                ph_risks: 'Маркировка, трудовые договоры, эквайринг...',
+                btn_save_profile: '<i class="fa-solid fa-bolt"></i> <span id="btn-text">Запустить анализ рисков</span>',
+
+                // Настройки и дни недели
                 settings_title: 'Настройки системы',
                 push_time_label: '<i class="fa-regular fa-clock"></i> Время ежедневного пуша спокойствия',
                 push_days_label: '<i class="fa-solid fa-calendar-days"></i> Дни уведомлений',
-                theme_label: '<i class="fa-regular fa-moon"></i> Светлая / Темная тема',
-                theme_btn: 'Сменить',
-                lang_label: 'Язык / Language',
-                lang_btn_next: 'English',
-                btn_save_profile: '<i class="fa-solid fa-bolt"></i> <span id="btn-text">Запустить анализ рисков</span>'
+                day_everyday: 'Каждый день',
+                day_mon: 'Понедельник',
+                day_tue: 'Вторник',
+                day_wed: 'Среда',
+                day_thu: 'Четверг',
+                day_fri: 'Пятница',
+                day_sat: 'Суббота',
+                day_sun: 'Воскресенье',
+                day_monthly: 'Раз в месяц',
+                theme_label: 'Светлая / Темная тема',
+                theme_btn: 'Toggle',
+                lang_label: 'Language',
+                lang_btn_next: 'EN'
             },
             en: {
+                // Header & General
+                btn_instruction: '<i class="fa-solid fa-circle-question"></i> Guide',
+
+                // Navigation
                 tab_radar: '<i class="fa-solid fa-shield-halved"></i> Home',
                 tab_profile: '<i class="fa-solid fa-briefcase"></i> Business',
                 tab_archive: '<i class="fa-solid fa-box-archive"></i> Archive',
                 tab_settings: '<i class="fa-solid fa-gear"></i> Options',
+
+                // Main Screen (Radar)
                 radar_subtitle: 'Daily Legal Monitoring',
                 radar_active: '<i class="fa-solid fa-circle-check"></i> Monitoring active',
                 refresh_btn: 'Refresh current analysis',
@@ -623,14 +688,54 @@
                 chat_title: '<i class="fa-solid fa-comments" style="color: #30D158;"></i> Discussion & File Audit:',
                 chat_welcome: 'Ask any clarifying question, dictate business data, or attach a document.',
                 chat_placeholder: 'Ask the lawyer...',
+
+                // Archive
+                archive_title: 'Report Archive',
+                archive_search_placeholder: 'Search by business name...',
+                report_prefix: 'Report from',
+                btn_download_pdf: '<i class="fa-solid fa-file-pdf"></i> Download PDF',
+
+                // Business Profile Form
+                profile_title: 'Business Parameters',
+                profile_subtitle: 'Advanced profile for AI adaptation',
+                label_country: 'COUNTRY',
+                label_location: 'STATE, REGION, CITY / LOCATION',
+                ph_location: 'e.g. New York, Florida',
+                label_entity: 'LEGAL ENTITY',
+                label_activity: 'BUSINESS SPECIFICS & SCOPE',
+                ph_activity: 'Describe product, team, clients...',
+                label_tax: 'TAX SYSTEM',
+                ph_tax: 'e.g. Corporate Tax / LLC / Sole Prop',
+                label_employees: 'NUMBER OF EMPLOYEES',
+                ph_employees: 'e.g. 12',
+                label_revenue: 'ANNUAL REVENUE',
+                opt_rev_1: 'Up to $100k',
+                opt_rev_2: '$100k - $500k',
+                opt_rev_3: '$500k - $1M',
+                opt_rev_4: 'Over $1M',
+                label_ip: 'IP RIGHTS HELD (TRADEMARKS, PATENTS)',
+                label_ecom: 'E-COMMERCE / ONLINE SALES',
+                label_risks: 'KEY RISK AREAS (COMMA SEPARATED)',
+                ph_risks: 'Labeling, employment contracts, acquiring...',
+                btn_save_profile: '<i class="fa-solid fa-bolt"></i> <span id="btn-text">Run Risk Analysis</span>',
+
+                // Settings & Weekdays
                 settings_title: 'System Settings',
                 push_time_label: '<i class="fa-regular fa-clock"></i> Daily Push Time',
                 push_days_label: '<i class="fa-solid fa-calendar-days"></i> Notification Days',
-                theme_label: '<i class="fa-regular fa-moon"></i> Light / Dark Theme',
+                day_everyday: 'Everyday',
+                day_mon: 'Monday',
+                day_tue: 'Tuesday',
+                day_wed: 'Wednesday',
+                day_thu: 'Thursday',
+                day_fri: 'Friday',
+                day_sat: 'Saturday',
+                day_sun: 'Sunday',
+                day_monthly: 'Once a month',
+                theme_label: 'Light / Dark Theme',
                 theme_btn: 'Toggle',
-                lang_label: 'Language / Язык',
-                lang_btn_next: 'Русский',
-                btn_save_profile: '<i class="fa-solid fa-bolt"></i> <span id="btn-text">Run Risk Analysis</span>'
+                lang_label: 'Language',
+                lang_btn_next: 'RU'
             }
         };
 
