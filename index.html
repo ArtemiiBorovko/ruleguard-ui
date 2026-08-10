@@ -492,6 +492,13 @@
                     <label><i class="fa-regular fa-moon"></i> Светлая / Темная тема</label>
                     <button class="btn-submit" style="padding: 6px 12px; font-size: 13px; width: auto; margin: 0;" onclick="toggleTheme()">Сменить</button>
                 </div>
+
+                <div class="theme-switch-box" style="margin-top: 12px;">
+                    <label><i class="fa-solid fa-globe"></i> <span data-i18n="lang_label">Язык / Language</span></label>
+                    <button class="btn-submit" id="lang-toggle-btn" style="padding: 6px 12px; font-size: 13px; width: auto; margin: 0;" onclick="toggleLanguage()">
+                        English
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -580,6 +587,107 @@
 
         const userTelegramId = tg.initDataUnsafe?.user?.id || 542709522; 
         const userTelegramName = tg.initDataUnsafe?.user?.first_name || "Предприниматель";
+
+        // 1. Словарь переводов
+        const translations = {
+            ru: {
+                tab_radar: '<i class="fa-solid fa-shield-halved"></i> Главная',
+                tab_profile: '<i class="fa-solid fa-briefcase"></i> Бизнес',
+                tab_archive: '<i class="fa-solid fa-box-archive"></i> Архив',
+                tab_settings: '<i class="fa-solid fa-gear"></i> Опции',
+                radar_subtitle: 'Ежедневный юридический мониторинг',
+                radar_active: '<i class="fa-solid fa-circle-check"></i> Мониторинг активен',
+                refresh_btn: 'Обновить текущий анализ',
+                last_analysis: '<i class="fa-solid fa-brain" style="color: #30D158;"></i> Последний анализ:',
+                chat_title: '<i class="fa-solid fa-comments" style="color: #30D158;"></i> Обсуждение и аудит файлов:',
+                chat_welcome: 'Задайте любой уточняющий вопрос, надиктуйте данные о бизнесе или прикрепите документ.',
+                chat_placeholder: 'Вопрос юристу...',
+                settings_title: 'Настройки системы',
+                push_time_label: '<i class="fa-regular fa-clock"></i> Время ежедневного пуша спокойствия',
+                push_days_label: '<i class="fa-solid fa-calendar-days"></i> Дни уведомлений',
+                theme_label: '<i class="fa-regular fa-moon"></i> Светлая / Темная тема',
+                theme_btn: 'Сменить',
+                lang_label: '<i class="fa-solid fa-globe"></i> Язык / Language',
+                lang_btn_next: 'English',
+                btn_save_profile: '<i class="fa-solid fa-bolt"></i> <span id="btn-text">Запустить анализ рисков</span>'
+            },
+            en: {
+                tab_radar: '<i class="fa-solid fa-shield-halved"></i> Home',
+                tab_profile: '<i class="fa-solid fa-briefcase"></i> Business',
+                tab_archive: '<i class="fa-solid fa-box-archive"></i> Archive',
+                tab_settings: '<i class="fa-solid fa-gear"></i> Options',
+                radar_subtitle: 'Daily Legal Monitoring',
+                radar_active: '<i class="fa-solid fa-circle-check"></i> Monitoring active',
+                refresh_btn: 'Refresh current analysis',
+                last_analysis: '<i class="fa-solid fa-brain" style="color: #30D158;"></i> Latest Analysis:',
+                chat_title: '<i class="fa-solid fa-comments" style="color: #30D158;"></i> Discussion & File Audit:',
+                chat_welcome: 'Ask any clarifying question, dictate business data, or attach a document.',
+                chat_placeholder: 'Ask the lawyer...',
+                settings_title: 'System Settings',
+                push_time_label: '<i class="fa-regular fa-clock"></i> Daily Push Time',
+                push_days_label: '<i class="fa-solid fa-calendar-days"></i> Notification Days',
+                theme_label: '<i class="fa-regular fa-moon"></i> Light / Dark Theme',
+                theme_btn: 'Toggle',
+                lang_label: '<i class="fa-solid fa-globe"></i> Language / Язык',
+                lang_btn_next: 'Русский',
+                btn_save_profile: '<i class="fa-solid fa-bolt"></i> <span id="btn-text">Run Risk Analysis</span>'
+            }
+        };
+
+        // 2. Определение начального языка
+        function getInitialLanguage() {
+            const savedLang = localStorage.getItem('ruleguard_lang');
+            if (savedLang) return savedLang;
+
+            const tgLang = tg.initDataUnsafe?.user?.language_code;
+            if (tgLang) {
+                return tgLang.toLowerCase().startsWith('ru') ? 'ru' : 'en';
+            }
+
+            const sysLang = navigator.language || 'ru';
+            return sysLang.toLowerCase().startsWith('ru') ? 'ru' : 'en';
+        }
+
+        let currentLang = getInitialLanguage();
+
+        // 3. Функция применения языка к DOM
+        function applyLanguage(lang) {
+            currentLang = lang;
+            localStorage.setItem('ruleguard_lang', lang);
+
+            // Обновляем текстовые элементы
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (translations[lang] && translations[lang][key]) {
+                    el.innerHTML = translations[lang][key];
+                }
+            });
+
+            // Обновляем placeholder в полях ввода
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                const key = el.getAttribute('data-i18n-placeholder');
+                if (translations[lang] && translations[lang][key]) {
+                    el.placeholder = translations[lang][key];
+                }
+            });
+
+            // Обновляем текст кнопки переключения языка
+            const langBtn = document.getElementById('lang-toggle-btn');
+            if (langBtn) {
+                langBtn.innerText = translations[lang].lang_btn_next;
+            }
+        }
+
+        // 4. Переключатель языка по кнопке
+        function toggleLanguage() {
+            const newLang = currentLang === 'ru' ? 'en' : 'ru';
+            applyLanguage(newLang);
+        }
+
+        // Вызываем при старте приложения
+        document.addEventListener('DOMContentLoaded', () => {
+            applyLanguage(currentLang);
+        });
 
         let mediaRecorder = null;
         let audioChunks = [];
