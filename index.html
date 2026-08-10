@@ -396,7 +396,7 @@
 
                 <div class="form-group">
                     <label data-i18n="label_employees">КОЛИЧЕСТВО СОТРУДНИКОВ</label>
-                    <input type="number" id="employee_count" data-i18n-placeholder="ph_employees" placeholder="Например: 12">
+                    <input type="number" id="employee_count" min="0" data-i18n-placeholder="ph_employees" placeholder="Например: 12">
                 </div>
 
                 <div class="form-group">
@@ -514,8 +514,8 @@
                 <div style="text-align: center; margin-bottom: 12px;">
                     <i class="fa-solid fa-wand-magic-sparkles" style="font-size: 40px; color: var(--accent-color);"></i>
                 </div>
-                <h3 style="margin-top: 0; font-size: 20px; margin-bottom: 12px; text-align: center;">Добро пожаловать!</h3>
-                <p style="font-size: 13.5px; line-height: 1.5; color: var(--text-muted); text-align: center; margin-bottom: 20px;">
+                <h3 style="margin-top: 0; font-size: 20px; margin-bottom: 12px; text-align: center;" data-i18n="onboarding_title_1">Добро пожаловать!</h3>
+                <p style="font-size: 13.5px; line-height: 1.5; color: var(--text-muted); text-align: center; margin-bottom: 20px;" data-i18n="onboarding_desc_1">
                     Вам больше не нужно вручную заполнять длинные формы параметров бизнеса. RuleGuard — твой персональный ИИ-юрист.
                 </p>
             </div>
@@ -524,13 +524,13 @@
                 <div style="text-align: center; margin-bottom: 12px;">
                     <i class="fa-solid fa-gears" style="font-size: 40px; color: var(--accent-color);"></i>
                 </div>
-                <h3 style="margin-top: 0; font-size: 20px; margin-bottom: 12px; text-align: center;">Базовая настройка</h3>
-                <p style="font-size: 13.5px; line-height: 1.5; color: var(--text-muted); text-align: center; margin-bottom: 15px;">
+                <h3 style="margin-top: 0; font-size: 20px; margin-bottom: 12px; text-align: center;" data-i18n="onboarding_title_2">Базовая настройка</h3>
+                <p style="font-size: 13.5px; line-height: 1.5; color: var(--text-muted); text-align: center; margin-bottom: 15px;" data-i18n="onboarding_desc_2">
                     Чтобы защита работала максимально точно:
                 </p>
                 <div style="background: var(--input-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 12px; margin-bottom: 16px; font-size: 13px; line-height: 1.4;">
-                    1. Заполни базовые данные в разделе «Бизнес».<br>
-                    2. Выстрой график пушей в «Опциях».
+                    <span data-i18n="onboarding_step2_item1">1. Заполни базовые данные в разделе «Бизнес».</span><br>
+                    <span data-i18n="onboarding_step2_item2">2. Выстрой график пушей в «Опциях».</span>
                 </div>
             </div>
 
@@ -538,20 +538,20 @@
                 <div style="text-align: center; margin-bottom: 12px;">
                     <i class="fa-solid fa-microphone-lines" style="font-size: 40px; color: var(--accent-color);"></i>
                 </div>
-                <h3 style="margin-top: 0; font-size: 20px; margin-bottom: 12px; text-align: center;">Голосовой ввод ИИ</h3>
+                <h3 style="margin-top: 0; font-size: 20px; margin-bottom: 12px; text-align: center;" data-i18n="onboarding_title_3">Голосовой ввод ИИ</h3>
                 <div style="background: var(--input-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 12px; margin-bottom: 16px; font-size: 13px; line-height: 1.4;">
                     <i class="fa-solid fa-lightbulb" style="color: #FFCC00; margin-right: 4px;"></i>
-                    <b>Как это работает:</b><br>
-                    Просто отправьте текстовое или <b>голосовое сообщение</b> в чат. Например:
-                    <i style="display:block; margin-top:6px; color: var(--text-muted);">«У меня ООО в Москве, 8 сотрудников. Включи светлую тему и ставь пуши на 10:00»</i>
+                    <b data-i18n="onboarding_how_it_works">Как это работает:</b><br>
+                    <span data-i18n="onboarding_voice_desc">Просто отправьте текстовое или <b>голосовое сообщение</b> в чат. Например:</span>
+                    <i style="display:block; margin-top:6px; color: var(--text-muted);" data-i18n="onboarding_voice_example">«У меня ООО в Москве, 8 сотрудников. Включи светлую тему и ставь пуши на 10:00»</i>
                 </div>
             </div>
 
             <div style="display: flex; gap: 10px; margin-top: 10px;">
-                <button id="prev-btn" onclick="changeStep(-1)" style="display: none; flex: 1; background: transparent; color: var(--text-main); border: 1px solid var(--card-border); padding: 12px; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 14px;">
+                <button id="prev-btn" onclick="changeStep(-1)" style="display: none; flex: 1; background: transparent; color: var(--text-main); border: 1px solid var(--card-border); padding: 12px; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 14px;" data-i18n="btn_back">
                     Назад
                 </button>
-                <button id="next-btn" onclick="changeStep(1)" class="btn-submit" style="flex: 2; margin: 0; width: auto;">
+                <button id="next-btn" onclick="changeStep(1)" class="btn-submit" style="flex: 2; margin: 0; width: auto;" data-i18n="btn_next">
                     Далее
                 </button>
             </div>
@@ -625,7 +625,21 @@
                 theme_label: 'Светлая / Темная тема',
                 theme_btn: 'Переключить',
                 lang_label: 'Язык',
-                lang_btn_next: 'EN'
+                lang_btn_next: 'EN',
+                step_indicator: 'Шаг {step} из 3',
+                onboarding_title_1: 'Добро пожаловать!',
+                onboarding_desc_1: 'Вам больше не нужно вручную заполнять длинные формы параметров бизнеса. RuleGuard — твой персональный ИИ-юрист.',
+                onboarding_title_2: 'Базовая настройка',
+                onboarding_desc_2: 'Чтобы защита работала максимально точно:',
+                onboarding_step2_item1: '1. Заполни базовые данные в разделе «Бизнес».',
+                onboarding_step2_item2: '2. Выстрой график пушей в «Опциях».',
+                onboarding_title_3: 'Голосовой ввод ИИ',
+                onboarding_how_it_works: 'Как это работает:',
+                onboarding_voice_desc: 'Просто отправьте текстовое или <b>голосовое сообщение</b> в чат. Например:',
+                onboarding_voice_example: '«У меня ООО в Москве, 8 сотрудников. Включи светлую тему и ставь пуши на 10:00»',
+                btn_back: 'Назад',
+                btn_next: 'Далее',
+                btn_start: 'Начать работу'
             },
             en: {
                 btn_instruction: 'Guide',
@@ -681,7 +695,21 @@
                 theme_label: 'Light / Dark Theme',
                 theme_btn: 'Toggle',
                 lang_label: 'Language',
-                lang_btn_next: 'RU'
+                lang_btn_next: 'RU',
+                step_indicator: 'Step {step} of 3',
+                onboarding_title_1: 'Welcome!',
+                onboarding_desc_1: 'You no longer need to manually fill in long business parameter forms. RuleGuard is your personal AI lawyer.',
+                onboarding_title_2: 'Basic Setup',
+                onboarding_desc_2: 'To make protection work with maximum accuracy:',
+                onboarding_step2_item1: '1. Fill in basic data in the "Business" section.',
+                onboarding_step2_item2: '2. Set up push schedule in "Options".',
+                onboarding_title_3: 'AI Voice Input',
+                onboarding_how_it_works: 'How it works:',
+                onboarding_voice_desc: 'Simply send a text or <b>voice message</b> to the chat. For example:',
+                onboarding_voice_example: '"I have an LLC in Moscow, 8 employees. Turn on light theme and set push to 10:00"',
+                btn_back: 'Back',
+                btn_next: 'Next',
+                btn_start: 'Get Started'
             }
         };
 
@@ -740,17 +768,27 @@
             document.querySelectorAll('.onboarding-step').forEach(el => {
                 el.style.display = el.getAttribute('data-step') == currentStep ? 'block' : 'none';
             });
+            
             const indicator = document.getElementById('step-indicator');
-            if (indicator) indicator.innerText = `Шаг ${currentStep} из ${totalSteps}`;
+            if (indicator) {
+                const stepText = translations[currentLang]?.step_indicator || `Шаг ${currentStep} из ${totalSteps}`;
+                indicator.innerText = stepText.replace('{step}', currentStep);
+            }
 
             const prevBtn = document.getElementById('prev-btn');
-            if (prevBtn) prevBtn.style.display = currentStep === 1 ? 'none' : 'block';
+            if (prevBtn) {
+                prevBtn.style.display = currentStep === 1 ? 'none' : 'block';
+                prevBtn.innerText = translations[currentLang]?.btn_back || 'Назад';
+            }
 
             const nextBtn = document.getElementById('next-btn');
             if (nextBtn) {
+                const startText = translations[currentLang]?.btn_start || 'Начать работу';
+                const nextText = translations[currentLang]?.btn_next || 'Далее';
+                
                 nextBtn.innerHTML = currentStep === totalSteps 
-                    ? '<i class="fa-solid fa-rocket"></i> Начать работу' 
-                    : 'Далее';
+                    ? `<i class="fa-solid fa-rocket"></i> ${startText}` 
+                    : nextText;
             }
         }
 
@@ -765,6 +803,7 @@
 
         function openOnboardingModal() {
             currentStep = 1;
+            applyLanguage(currentLang); // Принудительно применяем текущий язык перед открытием
             updateStepView();
             const modal = document.getElementById('onboarding-modal');
             if (modal) modal.style.display = 'flex';
@@ -1258,7 +1297,8 @@
             const bizForm = document.getElementById('biz_form').value;
             const description = document.getElementById('description').value.trim();
             const taxSystem = document.getElementById('tax_system').value.trim();
-            const employeeCount = parseInt(document.getElementById('employee_count').value) || 0;
+            const rawEmp = parseInt(document.getElementById('employee_count').value);
+            const employeeCount = isNaN(rawEmp) || rawEmp < 0 ? 0 : rawEmp;
             const annualTurnover = document.getElementById('annual_turnover_bracket').value;
             const hasIpRights = document.getElementById('has_ip_rights').checked;
             const onlineSales = document.getElementById('online_sales').checked;
