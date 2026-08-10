@@ -243,7 +243,7 @@
         .theme-toggle-icon-btn {
             background: transparent;
             border: 1px solid var(--card-border);
-            color: var(--text-muted);
+            color: var(--text-muted) !important; /* Теперь иконка всегда серых оттенков по умолчанию */
             border-radius: 12px;
             width: 42px;
             height: 42px;
@@ -256,16 +256,16 @@
         }
 
         .theme-toggle-icon-btn:hover {
-            color: var(--accent-color);
+            color: var(--accent-color) !important; /* При наведении подсвечивается зеленым */
             border-color: var(--accent-color);
         }
 
-        /* Логика смены иконок без JavaScript */
+        /* Переключение иконок Луна / Солнце */
         .theme-toggle-icon-btn .light-icon { display: none; }
         .theme-toggle-icon-btn .dark-icon { display: block; }
 
         [data-theme="light"] .theme-toggle-icon-btn .light-icon { display: block; }
-        [data-theme="light"] .theme-toggle-icon-btn .dark-icon { display: none; }    
+        [data-theme="light"] .theme-toggle-icon-btn .dark-icon { display: none; }
 
         @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
