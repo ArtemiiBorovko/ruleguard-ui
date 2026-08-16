@@ -301,7 +301,7 @@ def safe_groq_request(messages, temperature=0.3, max_tokens=None, is_dispatcher=
         primary_model = "llama-3.1-8b-instant"
         fallback_model = "llama-3.1-8b-instant"
     else:
-        primary_model = "qwen-3.6-27b"
+        primary_model = "qwen/qwen3.6-27b"
         fallback_model = "llama-3.1-8b-instant"
         
     kwargs = {"model": primary_model, "messages": messages, "temperature": temperature}
