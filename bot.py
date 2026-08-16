@@ -301,7 +301,7 @@ def safe_groq_request(messages, temperature=0.3, max_tokens=None, is_dispatcher=
         primary_model = "llama-3.1-8b-instant"
         fallback_model = "llama-3.1-8b-instant"
     else:
-        primary_model = "llama-3.3-70b-versatile"
+        primary_model = "qwen-3.6-27b"
         fallback_model = "llama-3.1-8b-instant"
         
     kwargs = {"model": primary_model, "messages": messages, "temperature": temperature}
@@ -1135,33 +1135,38 @@ def send_daily_push_notifications():
             except Exception:
                 push_hour, push_minute = 9, 0
             
-            # Проверяем, наступило ли заданное время (ровно минута в минуту)
-            if now_tz.hour == push_hour and now_tz.minute == push_minute:
-                # ВЕСЬ БЛОК ОТПРАВКИ ТЕПЕРЬ ЗАЩИЩЕН ОТ СБОЕВ СЕТИ
-                try:
-                    search_query = f"{country or ''} {location or ''} {legal_form or ''} {business or ''}"
-                    web_data = search_internet(search_query)
-                    
-                    messages = [
-                        {"role": "system", "content": "Ты — ИИ-юрист RuleGuard. Напиши очень краткую сводку законов на сегодня (2-3 предложения)."},
-                        {"role": "user", "content": f"Бизнес: {business}, Локация: {location}. Данные: {web_data}"}
-                    ]
-                    bot_response = safe_groq_request(messages, temperature=0.4)
+            # 1. Проверяем, наступило ли время пуша (сейчас больше часов, ИЛИ часы те же, но минут больше/равно)
+            time_has_come = now_tz.hour > push_hour or (now_tz.hour == push_hour and now_tz.minute >= push_minute)
+            
+            if time_has_come:
+                # 2. Обязательно проверяем, чтобы пуш не улетел дважды за один день
+                if last_push_date != today_date:
                     
                     try:
-                        bot.send_message(user_id, f"🛡️ <b>Ежедневный RuleGuard Радар</b>\n\n{bot_response}", parse_mode="HTML")
-                    except Exception as tg_e:
-                        print(f"Ошибка Телеграма для {user_id}: {tg_e}")
+                        search_query = f"{country or ''} {location or ''} {legal_form or ''} {business or ''}"
+                        web_data = search_internet(search_query)
+                        
+                        messages = [
+                            {"role": "system", "content": "Ты — ИИ-юрист RuleGuard. Напиши очень краткую сводку законов на сегодня (2-3 предложения)."},
+                            {"role": "user", "content": f"Бизнес: {business}, Локация: {location}. Данные: {web_data}"}
+                        ]
+                        bot_response = safe_groq_request(messages, temperature=0.4)
+                        
+                        try:
+                            bot.send_message(user_id, f"🛡️ <b>Ежедневный RuleGuard Радар</b>\n\n{bot_response}", parse_mode="HTML")
+                        except Exception as tg_e:
+                            print(f"Ошибка Телеграма для {user_id}: {tg_e}")
+                            continue
+                        
+                        # 3. Обновляем дату в базе ТОЛЬКО после успешной отправки сообщения
+                        with engine.begin() as update_conn:
+                            update_conn.execute(
+                                text("UPDATE users SET last_push_date = :today WHERE user_id = :uid"), 
+                                {"today": today_date, "uid": user_id}
+                            )
+                    except Exception as inner_e:
+                        print(f"⚠️ Внутренняя ошибка пуша для юзера {user_id}: {inner_e}")
                         continue
-                    
-                    with engine.begin() as update_conn:
-                        update_conn.execute(
-                            text("UPDATE users SET last_push_date = :today WHERE user_id = :uid"), 
-                            {"today": today_date, "uid": user_id}
-                        )
-                except Exception as inner_e:
-                    print(f"⚠️ Внутренняя ошибка пуша для юзера {user_id}: {inner_e}")
-                    continue
 
     except Exception as e:
         print(f"Ошибка планировщика пушей: {e}")
