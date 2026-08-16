@@ -1152,6 +1152,13 @@ def send_daily_push_notifications():
                         ]
                         bot_response = safe_groq_request(messages, temperature=0.4)
                         
+                        # --- НОВЫЙ КОД ОЧИСТКИ ---
+                        # Удаляем блок <think>...</think> вместе с его содержимым (мыслями модели)
+                        bot_response = re.sub(r'<think>.*?</think>', '', bot_response, flags=re.DOTALL)
+                        # На случай, если модель выдала непарный тег, удаляем остатки
+                        bot_response = bot_response.replace('<think>', '').replace('</think>', '').strip()
+                        # -------------------------
+
                         try:
                             bot.send_message(user_id, f"🛡️ <b>Ежедневный RuleGuard Радар</b>\n\n{bot_response}", parse_mode="HTML")
                         except Exception as tg_e:
