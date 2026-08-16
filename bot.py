@@ -309,15 +309,21 @@ def safe_groq_request(messages, temperature=0.3, max_tokens=None, is_dispatcher=
         
     try:
         completion = groq_client.chat.completions.create(**kwargs)
-        return completion.choices[0].message.content
+        raw_content = completion.choices[0].message.content
     except Exception as e:
         if "429" in str(e) or "rate_limit" in str(e):
             print(f"⚠️ Лимит {primary_model} исчерпан. Экстренный переход на {fallback_model}...")
             kwargs["model"] = fallback_model
             completion = groq_client.chat.completions.create(**kwargs)
-            return completion.choices[0].message.content
+            raw_content = completion.choices[0].message.content
         else:
             raise e
+
+    # Автоматически вырезаем <think> теги для ВСЕХ вызовов ИИ в проекте
+    cleaned_content = re.sub(r'<think>.*?</think>', '', raw_content, flags=re.DOTALL)
+    cleaned_content = cleaned_content.replace('<think>', '').replace('</think>', '').strip()
+    
+    return cleaned_content
 
 def check_if_search_needed(history, current_input):
     system_prompt = (
