@@ -35,6 +35,8 @@ GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 DATABASE_URL = os.getenv("DATABASE_URL")
 TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
 RENDER_APP_URL = os.getenv("RENDER_EXTERNAL_URL", "https://ruleguard-backend.onrender.com")
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME") 
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 
 # Простая проверка на старте, чтобы сразу увидеть, если забыли указать переменную
 if not all([TELEGRAM_TOKEN, GROQ_API_KEY, DATABASE_URL, TAVILY_API_KEY]):
@@ -50,8 +52,8 @@ app = FastAPI()
 security = HTTPBasic()
 
 def get_current_admin(credentials: HTTPBasicCredentials = Depends(security)):
-    correct_username = secrets.compare_digest(credentials.username, "artemiiborovko")
-    correct_password = secrets.compare_digest(credentials.password, "N5oXxMAhdw")
+    correct_username = secrets.compare_digest(credentials.username, ADMIN_USERNAME or "")
+    correct_password = secrets.compare_digest(credentials.password, ADMIN_PASSWORD or "")
     
     if not (correct_username and correct_password):
         raise HTTPException(
