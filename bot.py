@@ -516,7 +516,7 @@ def generate_report_logic(user_id, current_input_text):
         {"role": "user", "content": full_prompt}
     ]
     
-    bot_response = safe_groq_request(messages, temperature=0.25)
+    bot_response = safe_groq_request(messages, temperature=0.25, max_tokens=4000)
     save_report_to_archive(user_id, current_input_text, bot_response)
     return bot_response
 
@@ -550,7 +550,7 @@ def get_legal_chat_reply(user_id, current_input_text):
         messages_payload.append(msg)
     messages_payload.append({"role": "user", "content": current_input_text})
 
-    bot_response = safe_groq_request(messages_payload, temperature=0.3)
+    bot_response = safe_groq_request(messages_payload, temperature=0.3, max_tokens=4000)
     
     save_chat_message(user_id, "user", current_input_text)
     save_chat_message(user_id, "assistant", bot_response)
@@ -783,7 +783,7 @@ async def handle_webapp_doc(user_id: int, file: UploadFile = File(...)):
             {"role": "user", "content": f"Контекст компании клиента: {user_context}\n\nТЕКСТ ДОГОВОРА:\n{text_content}"}
         ]
         
-        report = safe_groq_request(messages, temperature=0.2)
+        report = safe_groq_request(messages, temperature=0.2, max_tokens=4000)
         
         save_chat_message(user_id, "user", f"[Документ: {file.filename}]")
         save_chat_message(user_id, "assistant", report)
@@ -1174,7 +1174,7 @@ def send_daily_push_notifications():
                             {"role": "system", "content": "Ты — ИИ-юрист RuleGuard. Напиши очень краткую сводку законов на сегодня (2-3 предложения)."},
                             {"role": "user", "content": f"Бизнес: {business}, Локация: {location}. Данные: {web_data}"}
                         ]
-                        bot_response = safe_groq_request(messages, temperature=0.4)
+                        bot_response = safe_groq_request(messages, temperature=0.4, max_tokens=4000)
                         
                         # --- НОВЫЙ КОД ОЧИСТКИ ---
                         # Удаляем блок <think>...</think> вместе с его содержимым (мыслями модели)
@@ -1362,7 +1362,7 @@ def handle_document(message):
             {"role": "user", "content": f"Контекст компании: {user_context}\n\nТЕКСТ:\n{text_content}"}
         ]
         
-        report = safe_groq_request(messages, temperature=0.2)
+        report = safe_groq_request(messages, temperature=0.2, max_tokens=4000)
         
         save_chat_message(message.from_user.id, "user", f"[Документ: {file_name}]")
         save_chat_message(message.from_user.id, "assistant", report)
