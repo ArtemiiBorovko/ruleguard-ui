@@ -327,6 +327,8 @@ def safe_groq_request(messages, temperature=0.3, max_tokens=None, is_dispatcher=
         
     kwargs = {"model": primary_model, "messages": messages, "temperature": temperature}
     if max_tokens: kwargs["max_tokens"] = max_tokens
+    if not is_dispatcher:
+        kwargs["reasoning_format"] = "hidden"
         
     try:
         completion = groq_client.chat.completions.create(**kwargs)
@@ -335,6 +337,7 @@ def safe_groq_request(messages, temperature=0.3, max_tokens=None, is_dispatcher=
         if "429" in str(e) or "rate_limit" in str(e):
             print(f"⚠️ Лимит {primary_model} исчерпан. Экстренный переход на {fallback_model}...")
             kwargs["model"] = fallback_model
+            kwargs.pop("reasoning_format", None)
             completion = groq_client.chat.completions.create(**kwargs)
             raw_content = completion.choices[0].message.content
         else:
