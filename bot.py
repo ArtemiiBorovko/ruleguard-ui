@@ -43,6 +43,25 @@ if not all([TELEGRAM_TOKEN, GROQ_API_KEY, DATABASE_URL, TAVILY_API_KEY]):
     print("⚠️ ВНИМАНИЕ: Не все переменные окружения настроены на сервере!")
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
+
+def split_long_text(text, max_len=4000):
+    parts = []
+    while len(text) > max_len:
+        split_at = text.rfind('\n', 0, max_len)
+        if split_at == -1:
+            split_at = max_len
+        parts.append(text[:split_at])
+        text = text[split_at:]
+    parts.append(text)
+    return parts
+
+def send_long_message(chat_id, text, parse_mode=None):
+    for part in split_long_text(text):
+        try:
+            bot.send_message(chat_id, part, parse_mode=parse_mode)
+        except Exception:
+            bot.send_message(chat_id, part)
+
 groq_client = Groq(api_key=GROQ_API_KEY)
 engine = create_engine(DATABASE_URL)
 app = FastAPI()
@@ -670,10 +689,7 @@ async def handle_web_analysis(request: Request):
         report = generate_report_logic(user_id, compiled_input)
         
         flag = "🇺🇸" if country == "USA" else "🇷🇺" if country == "Russia" else "🌐"
-        try:
-            bot.send_message(user_id, f"{flag} <b>Новый анализ из приложения</b>\n\n{report}", parse_mode='HTML')
-        except Exception:
-            bot.send_message(user_id, f"{flag} Новый анализ из приложения\n\n{report}")
+        send_long_message(user_id, f"{flag} <b>Новый анализ из приложения</b>\n\n{report}", parse_mode='HTML')
         return {"status": "success", "report": report, "reply": report}
     except Exception as e:
         return {"status": "error", "message": str(e)}
@@ -769,10 +785,7 @@ async def handle_webapp_doc(user_id: int, file: UploadFile = File(...)):
         save_chat_message(user_id, "user", f"[Документ: {file.filename}]")
         save_chat_message(user_id, "assistant", report)
         
-        try: 
-            bot.send_message(user_id, f"📋 <b>Результаты экспресс-аудита документа (из приложения):</b>\n\n{report}", parse_mode='HTML')
-        except Exception:
-            bot.send_message(user_id, f"📋 Результаты экспресс-аудита документа (из приложения):\n\n{report}")
+        send_long_message(user_id, f"📋 <b>Результаты экспресс-аудита документа (из приложения):</b>\n\n{report}", parse_mode='HTML')
         
         return {"status": "success", "report": report, "reply": report}
     except Exception as e:
@@ -1168,7 +1181,7 @@ def send_daily_push_notifications():
                         # -------------------------
 
                         try:
-                            bot.send_message(user_id, f"🛡️ <b>Ежедневный RuleGuard Радар</b>\n\n{bot_response}", parse_mode="HTML")
+                            send_long_message(user_id, f"🛡️ <b>Ежедневный RuleGuard Радар</b>\n\n{bot_response}", parse_mode="HTML")
                         except Exception as tg_e:
                             print(f"Ошибка Телеграма для {user_id}: {tg_e}")
                             continue
