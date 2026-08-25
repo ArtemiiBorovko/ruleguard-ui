@@ -63,7 +63,7 @@ def send_long_message(chat_id, text, parse_mode=None):
             bot.send_message(chat_id, part)
 
 groq_client = Groq(api_key=GROQ_API_KEY)
-engine = create_engine(DATABASE_URL)
+engine = create_engine(DATABASE_URL, pool_pre_ping=True, connect_args={"connect_timeout": 10})
 app = FastAPI()
 
 # -------------------------------------------------------------------
@@ -1372,7 +1372,10 @@ def handle_document(message):
         safe_reply_to(message, f"⚠️ Ошибка при анализе документа: {str(e)}")
 
 # 6. ЗАПУСК И НАСТРОЙКА ВЕБХУКА
-init_db()
+try:
+    init_db()
+except Exception as e:
+    print(f"⚠️ init_db() не выполнился при старте (не критично, таблицы уже созданы ранее): {e}")
 scheduler = BackgroundScheduler(daemon=True)
 scheduler.add_job(send_daily_push_notifications, 'interval', minutes=1)
 scheduler.add_job(smart_ping_render, 'interval', minutes=10)
