@@ -44,6 +44,9 @@ if not all([TELEGRAM_TOKEN, GROQ_API_KEY, DATABASE_URL, TAVILY_API_KEY]):
 
 bot = telebot.TeleBot(TELEGRAM_TOKEN)
 
+telebot.apihelper.CONNECT_TIMEOUT = 10
+telebot.apihelper.READ_TIMEOUT = 15
+
 def split_long_text(text, max_len=4000):
     parts = []
     while len(text) > max_len:
@@ -1383,10 +1386,13 @@ scheduler.start()
 
 @app.on_event("startup")
 def setup_webhook_on_startup():
-    bot.remove_webhook()
-    webhook_url = f"{RENDER_APP_URL}/api/telegram-webhook"
-    bot.set_webhook(url=webhook_url)
-    print(f"🚀 Роутер Вебхука успешно зарегистрирован на URL: {webhook_url}")
+    try:
+        bot.remove_webhook()
+        webhook_url = f"{RENDER_APP_URL}/api/telegram-webhook"
+        bot.set_webhook(url=webhook_url)
+        print(f"🚀 Роутер Вебхука успешно зарегистрирован на URL: {webhook_url}")
+    except Exception as e:
+        print(f"⚠️ Не удалось перерегистрировать вебхук при старте (не критично, если он уже стоял ранее): {e}")
 
 # Функция для перевода в латиницу (чтобы сервер никогда не падал из-за русских букв)
 def to_translit(text: str) -> str:
