@@ -1381,7 +1381,9 @@ except Exception as e:
     print(f"⚠️ init_db() не выполнился при старте (не критично, таблицы уже созданы ранее): {e}")
 scheduler = BackgroundScheduler(daemon=True)
 scheduler.add_job(send_daily_push_notifications, 'interval', minutes=1)
-scheduler.add_job(smart_ping_render, 'interval', minutes=10)
+
+##scheduler.add_job(smart_ping_render, 'interval', minutes=10)
+
 scheduler.start()
 
 @app.on_event("startup")
